@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"talkative_stream_test/client"
-	)
+)
 
 func main() {
 	if len(os.Args) != 4 {
