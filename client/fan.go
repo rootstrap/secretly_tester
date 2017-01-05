@@ -35,6 +35,7 @@ func (f fan) SignUp() {
 	fmt.Println(jsonBodyStr)
 	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -58,6 +59,7 @@ func (f fan) SignIn() {
 	fmt.Println(jsonBodyStr)
 	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
