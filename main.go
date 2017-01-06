@@ -14,6 +14,5 @@ func main() {
 	fan := client.NewFan(os.Args[1], os.Args[2], os.Args[3])
 	fan.PrintInfos()
 	fan.SignUp()
-	fmt.Println("\n--\n")
 	fan.SignIn()
 }
