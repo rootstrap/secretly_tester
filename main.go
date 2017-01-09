@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	influencer := client.NewInfluencer("4370782811.1677ed0.cdd0257ffbe945fda541495b84e2135c", "romain@msolution.io")
+	influencer := client.NewInfluencer("4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "hrant@msolution.io")
 	status := influencer.SignIn()
 	fmt.Println("Influencer signin status: ", status)
 
