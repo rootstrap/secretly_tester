@@ -2,17 +2,30 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"talkative_stream_test/client"
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("Usage: talkative_stream_test email username password")
-		os.Exit(1)
+	influencer := client.NewInfluencer("4370782811.1677ed0.cdd0257ffbe945fda541495b84e2135c", "romain@msolution.io")
+	status := influencer.SignIn()
+	fmt.Println("Influencer signin status: ", status)
+
+	if status == 200 {
+		status = influencer.CreateStream()
+		fmt.Println("Create stream status: ", status)
+
+		fanUsername := "fan" + client.RandomString(12)
+		fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
+		status = fan.SignUp()
+		fmt.Println("Fan signup status: ", status)
+		if status == 200 {
+			status = fan.EnterInfluencerStream(influencer.Info.Id)
+			fmt.Println("Fan enters influencer stream status: ", status)
+			status = fan.LeaveInfluencerStream(influencer.Info.Id)
+			fmt.Println("Fan leaves influencer stream status: ", status)
+		}
+
+		status = influencer.DeleteStream()
+		fmt.Println("Delete stream status: ", status)
 	}
-	fan := client.NewFan(os.Args[1], os.Args[2], os.Args[3])
-	fan.PrintInfos()
-	fan.SignUp()
-	fan.SignIn()
 }
