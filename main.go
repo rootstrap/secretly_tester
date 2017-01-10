@@ -1,31 +1,88 @@
 package main
 
 import (
-	"fmt"
+	"encoding/csv"
+	"flag"
+	"log"
+	"os"
+	"strconv"
+	"sync"
 	"talkative_stream_test/client"
+	"talkative_stream_test/rtmp"
+	"time"
 )
 
 func main() {
-	influencer := client.NewInfluencer("4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "hrant@msolution.io")
-	status := influencer.SignIn()
-	fmt.Println("Influencer signin status: ", status)
+	var concurrentUsers int
+	var rampUpTime time.Duration
+	flag.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
+	flag.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
+	flag.Parse()
 
-	if status == 200 {
-		status = influencer.CreateStream()
-		fmt.Println("Create stream status: ", status)
-
-		fanUsername := "fan" + client.RandomString(12)
-		fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
-		status = fan.SignUp()
-		fmt.Println("Fan signup status: ", status)
-		if status == 200 {
-			status = fan.EnterInfluencerStream(influencer.Info.Id)
-			fmt.Println("Fan enters influencer stream status: ", status)
-			status = fan.LeaveInfluencerStream(influencer.Info.Id)
-			fmt.Println("Fan leaves influencer stream status: ", status)
+	out := make(chan []string)
+	go func() {
+		csvWriter := csv.NewWriter(os.Stdout)
+		for row := range out {
+			err := csvWriter.Write(row)
+			csvWriter.Flush()
+			if err != nil {
+				log.Println(err)
+			}
 		}
+	}()
 
-		status = influencer.DeleteStream()
-		fmt.Println("Delete stream status: ", status)
+	runN(concurrentUsers, rampUpTime, func() {
+		sessionId := client.RandomString(32)
+		log.Println("Starting client", sessionId)
+		startTime := time.Now()
+
+		rtmpUrl := "rtmp://dev.wowza.longtailvideo.com/vod/_definst_/sintel/640.mp4"
+		log.Println("Connecting client", sessionId, "to", rtmpUrl)
+		test := rtmp.NewRTMPTest(rtmpUrl)
+		go func() {
+			for prog := range test.Progress {
+				out <- []string{
+					sessionId,
+					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+					"StreamProgressPercent",
+					strconv.FormatFloat(float64(prog.Percent), 'f', 2, 32)}
+				out <- []string{
+					sessionId,
+					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+					"StreamProgressKiloBytes",
+					strconv.FormatFloat(float64(prog.KiloBytes), 'f', 2, 32)}
+				out <- []string{
+					sessionId,
+					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+					"StreamProgressSeconds",
+					strconv.FormatFloat(float64(prog.Seconds), 'f', 2, 32)}
+			}
+		}()
+		err := test.Run()
+		if err != nil {
+			log.Println(err)
+		}
+	})
+}
+
+func runN(count int, rampUpTime time.Duration, body func()) {
+	var wait sync.WaitGroup
+	queue := make(chan struct{}, count)
+	for {
+		time.Sleep(rampUpTime)
+		wait.Add(1)
+		queue <- struct{}{}
+		go func() {
+			defer func() {
+				wait.Done()
+				<-queue
+			}()
+			body()
+		}()
 	}
+	wait.Wait()
+}
+
+func secsSince(t time.Time) float64 {
+	return float64(time.Since(t)/time.Millisecond) / 1000
 }
