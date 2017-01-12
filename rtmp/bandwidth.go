@@ -2,7 +2,6 @@ package rtmp
 
 import (
 	"bufio"
-	"bytes"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -34,27 +33,24 @@ func (t *rtmpTest) Run() error {
 	if err != nil {
 		return err
 	}
-	scanner := bufio.NewScanner(stream)
-	scanner.Split(func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if atEOF && len(data) == 0 {
-			return 0, nil, nil
-		}
-		if i := bytes.IndexByte(data, '\n'); i >= 0 {
-			return i + 1, nil, nil
-		}
-		if i := bytes.IndexByte(data, '\r'); i >= 0 {
-			return i + 1, data[0:i], nil
-		}
-		if atEOF {
-			return len(data), data, nil
-		}
-		return 0, nil, nil
-	})
 	go func() {
-		for scanner.Scan() {
-			var progress RTMPProgress
-			if parseProgress(scanner.Text(), &progress) {
-				t.Progress <- progress
+		buff := bufio.NewReader(stream)
+		var acc []byte
+		var b byte
+		var err error = nil
+		for err == nil {
+			b, err = buff.ReadByte()
+			switch b {
+			case ')':
+				acc = append(acc, b)
+				var progress RTMPProgress
+				if parseProgress(string(acc), &progress) {
+					t.Progress <- progress
+				}
+			case '\n', '\r':
+				acc = acc[:0]
+			default:
+				acc = append(acc, b)
 			}
 		}
 	}()
