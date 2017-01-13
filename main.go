@@ -31,12 +31,35 @@ func main() {
 		}
 	}()
 
+	influencer, _ := getInfluencer()
+
+	originUrl := client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+	log.Println("Pushing to", originUrl)
+	go rtmp.NewRTMPPusher(originUrl, "640.flv").Run()
+
+	log.Println("Waiting for 3 seconds")
+	time.Sleep(3 * time.Second)
+
 	runN(concurrentUsers, rampUpTime, func() {
 		sessionId := client.RandomString(32)
 		log.Println("Starting client", sessionId)
 		startTime := time.Now()
 
-		rtmpUrl := "rtmp://dev.wowza.longtailvideo.com/vod/_definst_/sintel/640.mp4"
+		rtmpUrl, _ := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+		// something wrong with edge
+		rtmpUrl = client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+
+		if false { //disable fan signup
+			fanUsername := "fan" + client.RandomString(12)
+			fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
+			status := fan.SignUp()
+			log.Println("Fan signup status: ", status)
+			if status == 200 {
+				status = fan.EnterInfluencerStream(influencer.ID)
+				log.Println("Fan enters influencer stream status: ", status)
+			}
+		}
+
 		log.Println("Connecting client", sessionId, "to", rtmpUrl)
 		test := rtmp.NewRTMPTest(rtmpUrl)
 		go func() {
@@ -63,6 +86,33 @@ func main() {
 			log.Println(err)
 		}
 	})
+}
+
+func getInfluencer() (inf client.GetInfluencerResponse, err error) {
+	influencer := client.NewInfluencer("4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "hrant@msolution.io")
+	log.Println("SignIn as influencer", "hrant@msolution.io")
+	status := influencer.SignIn()
+
+	if status == 200 {
+		log.Println("Creating stream status")
+		status = influencer.CreateStream()
+		log.Println("Creating stream alerts")
+		status = influencer.CreateStreamAlerts()
+
+		for {
+			log.Println("Polling influencer for readiness")
+			inf, err = influencer.GetInfluencer()
+			if err != nil {
+				return
+			}
+			if inf.ServerStatus.Ready {
+				log.Println("Influencer ready")
+				return
+			}
+			time.Sleep(5 * time.Second)
+		}
+	}
+	return
 }
 
 func runN(count int, rampUpTime time.Duration, body func()) {

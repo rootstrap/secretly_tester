@@ -55,6 +55,12 @@ func sendProgresses(stream io.Reader, sink chan RTMPProgress) error {
 			if parseProgress(string(acc), &progress) {
 				sink <- progress
 			}
+		case 'c':
+			acc = append(acc, b)
+			var progress RTMPProgress
+			if parseProgress(string(acc), &progress) {
+				sink <- progress
+			}
 		case '\n', '\r':
 			acc = acc[:0]
 		default:
@@ -67,12 +73,16 @@ func sendProgresses(stream io.Reader, sink chan RTMPProgress) error {
 	return nil
 }
 
-var progressRegexp *regexp.Regexp = regexp.MustCompile("(\\d+[.]\\d+) *kB +/ +(\\d+[.]\\d+) *sec *\\( *(\\d+[.]\\d+) *% *\\)")
+var progressRegexp *regexp.Regexp = regexp.MustCompile("^ *(\\d+[.]\\d+) *kB +/ +(\\d+[.]\\d+) *sec *$")
+var progressRegexpPercent *regexp.Regexp = regexp.MustCompile("^ *(\\d+[.]\\d+) *kB +/ +(\\d+[.]\\d+) *sec *\\( *(\\d+[.]\\d+) *% *\\) *$")
 
 func parseProgress(s string, prog *RTMPProgress) bool {
-	matches := progressRegexp.FindStringSubmatch(s)
+	matches := progressRegexpPercent.FindStringSubmatch(s)
 	if len(matches) != 4 {
-		return false
+		matches = progressRegexp.FindStringSubmatch(s)
+		if len(matches) != 3 {
+			return false
+		}
 	}
 	for i, match := range matches[1:] {
 		float, err := strconv.ParseFloat(match, 32)

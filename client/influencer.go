@@ -115,8 +115,79 @@ func (this *influencer) CreateStream() int {
 	return status
 }
 
+func (this *influencer) CreateStreamAlerts() int {
+	createStreamUrl := "/api/v1/influencers/" + strconv.Itoa(this.Info.Id) + "/stream_alerts"
+	var jsonBodyStr string = "{}"
+	status, _ := this.postRequestWithAuthorizationToken(urlBase+createStreamUrl, jsonBodyStr, this.Info.Token)
+	return status
+}
+
 func (this *influencer) DeleteStream() int {
 	deleteStreamUrl := "/api/v1/influencers/" + strconv.Itoa(this.Info.Id) + "/streamings"
 	status := this.deleteRequestWithAuthorizationToken(urlBase+deleteStreamUrl, this.Info.Token)
 	return status
+}
+
+func (this *influencer) GetInfluencer() (data GetInfluencerResponse, err error) {
+	req, err := http.NewRequest("GET", urlBase+"/api/v1/influencers/"+strconv.Itoa(this.Info.Id), nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("X-INFLUENCER-TOKEN", this.Info.Token)
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return data, err
+	}
+	return data, nil
+}
+
+/*
+{
+    "amount_to_pay": 0,
+    "avatar": null,
+    "bio": "",
+    "debug_mode": false,
+    "email": "hrant@msolution.io",
+    "estimated_profit": 2,
+    "first_time": true,
+    "full_name": "Hrant Novikov",
+    "id": 56,
+    "is_featured": false,
+    "live_stream": {
+        "is_live": true,
+        "last_stream": "2017-01-13T04:18:38.566Z",
+        "last_stream_start": "2017-01-13T04:18:38.660Z"
+    },
+    "medium_avatar": null,
+    "monthly_income": 0,
+    "premiums_count": 0,
+    "servers_status": {
+        "origin_ip": "54.67.85.96",
+        "servers_launched_time": "2017-01-13T04:14:05.219Z",
+        "servers_launching": false,
+        "servers_ready": true
+    },
+    "small_avatar": null,
+    "subscribers_count": 1,
+    "username": "hrantnovikov",
+    "verified": 0
+}
+*/
+
+type GetInfluencerResponse struct {
+	ID           int    `json:"id"`
+	Username     string `json:"username"`
+	ServerStatus struct {
+		OriginIP  string `json:"origin_ip"`
+		Launching bool   `json:"servers_launching"`
+		Ready     bool   `json:"servers_ready"`
+	} `json:"servers_status"`
 }

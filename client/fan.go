@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -54,8 +53,8 @@ func (this *fan) postRequestWithFanInfoResponse(requestUrl, jsonBodyStr string) 
 	return status, fanInfoResp
 }
 
-func (this *fan) getRequestWithAuthorizationToken(requestUrl, token string) (int, []byte) {
-	req, err := http.NewRequest("GET", requestUrl, nil)
+func (this *fan) postRequestWithAuthorizationToken(requestUrl, token string, jsonBodyStr string) (int, []byte) {
+	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer([]byte(jsonBodyStr)))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-FAN-TOKEN", token)
 	req.Header.Set("Accept", "*/*")
@@ -68,15 +67,6 @@ func (this *fan) getRequestWithAuthorizationToken(requestUrl, token string) (int
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	return resp.StatusCode, body
-}
-
-func (this *fan) getRequestWithStreamingInfoResponse(requestUrl, token string) int {
-	status, body := this.getRequestWithAuthorizationToken(requestUrl, token)
-	if status == 200 {
-		fmt.Println(body)
-		// TODO: retrieve useful infos from the response
-	}
-	return status
 }
 
 func (this *fan) deleteRequestWithAuthorizationToken(requestUrl, token string) int {
@@ -119,8 +109,8 @@ func (this *fan) SignInOrUpWithInstagram(instagramToken string) int {
 }
 
 func (this *fan) EnterInfluencerStream(influencerId int) int {
-	enterInfluencerStreamUrl := "/api/v1/influencers/" + strconv.Itoa(influencerId) + "/streamings"
-	status := this.getRequestWithStreamingInfoResponse(urlBase+enterInfluencerStreamUrl, this.Info.Token)
+	enterInfluencerStreamUrl := "/api/v1/fan_influencers"
+	status, _ := this.postRequestWithAuthorizationToken(urlBase+enterInfluencerStreamUrl, this.Info.Token, `{"influencer_id":`+strconv.Itoa(influencerId)+`}`)
 	return status
 }
 
