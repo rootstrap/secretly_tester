@@ -20,7 +20,7 @@ func (t *rtmpPush) Run() error {
 	if err != nil {
 		return err
 	}
-	t.cmd = exec.Command(ffmpegPath, "-re", "-i", t.path, "-f", "flv", t.url)
+	t.cmd = exec.Command(ffmpegPath, "-re", "-i", t.path, "-acodec", "copy", "-vcodec", "copy", "-f", "flv", t.url)
 	t.cmd.Stdout = nil
 	t.cmd.Stderr = nil
 	return t.cmd.Run()
