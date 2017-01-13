@@ -47,7 +47,7 @@ func main() {
 
 		rtmpUrl, _ := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 		// something wrong with edge
-		rtmpUrl = client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+		//rtmpUrl = client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 
 		if false { //disable fan signup
 			fanUsername := "fan" + client.RandomString(12)

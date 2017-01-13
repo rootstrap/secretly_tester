@@ -28,7 +28,7 @@ func GetEdgeUrl(host string, streamName string) (url string, err error) {
 	if err != nil {
 		return
 	}
-	url = strings.Replace(parsed.Meta.Url, "_definst_", streamName, 1)
+	url = strings.Replace(parsed.Meta.Url, "_definst_", streamName+"_source", 1)
 	return
 }
 
