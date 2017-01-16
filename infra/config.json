@@ -1,0 +1,8 @@
+{
+    "aws_access_key": "AKIAI5ANNJPT4WKTNQ3Q",
+    "aws_secret_key": "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",
+    "aws_region": "us-west-1",
+    "instance_type": "m3.medium",
+    "security_group_id": "sg-d2e0ecb6",
+    "subnet_id": "subnet-f0b881a9"
+}

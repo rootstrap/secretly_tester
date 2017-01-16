@@ -1,0 +1,38 @@
+{
+    "variables": {
+        "aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+        "aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+        "aws_region": "",
+        "instance_type": "",
+        "git_ref": "",
+        "source_tarball": ""
+    },
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "access_key": "{{user `aws_access_key`}}",
+            "secret_key": "{{user `aws_secret_key`}}",
+            "ami_name": "talkativebandwidthtest {{user `git_ref`}}",
+            "region": "{{user `aws_region`}}",
+            "source_ami": "ami-539ac933",
+            "instance_type": "{{user `instance_type`}}",
+            "ssh_username": "ubuntu"
+        }
+    ],
+    "provisioners": [
+        {
+            "destination": "/tmp/talkative_stream_test.tgz",
+            "source": "{{user `source_tarball`}}",
+            "type": "file"
+        },
+        {
+            "inline": [
+                "mkdir -p /tmp/talkative_stream_test",
+                "tar -C /tmp/talkative_stream_test -xzf /tmp/talkative_stream_test.tgz",
+                "chmod +x /tmp/talkative_stream_test/infra/files/provision.sh",
+                "sudo /tmp/talkative_stream_test/infra/files/provision.sh"
+            ],
+            "type": "shell"
+        }
+    ]
+}

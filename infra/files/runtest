@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -eu
+
+./talkative_stream_test "$@" 2> lastrun.stderr > lastrun.stdout &
+testpid="$!"
+
+sleep 0.5
+
+tail -f lastrun.stderr >&2 &
+tailpid="$!"
+
+trap "kill $tailpid $testpid > /dev/null 2>&1" EXIT
+
+while ps --pid $testpid > /dev/null && [ $(cat lastrun.stdout | wc -c) -eq 0 ]
+do
+	sleep 1
+done
+
+kill $tailpid > /dev/null 2>&1
+
+if [ $(cat lastrun.stdout | wc -c) -ne 0 ]
+then
+	tail -f lastrun.stdout | python display.py
+fi
