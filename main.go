@@ -7,12 +7,14 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"syscall"
 	"talkative_stream_test/client"
 	"talkative_stream_test/rtmp"
 	"time"
 )
 
 func main() {
+	bumpNoFiles(8192)
 	var concurrentUsers int
 	var rampUpTime time.Duration
 	flag.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
@@ -139,4 +141,16 @@ func runN(count int, rampUpTime time.Duration, body func()) {
 
 func secsSince(t time.Time) float64 {
 	return float64(time.Since(t)/time.Millisecond) / 1000
+}
+
+func bumpNoFiles(noFiles uint64) error {
+	var rlim syscall.Rlimit
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlim)
+	if err != nil {
+		return err
+	}
+	if rlim.Cur < noFiles {
+		rlim.Cur = noFiles
+	}
+	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
 }
