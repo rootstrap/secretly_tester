@@ -45,7 +45,11 @@ func main() {
 		log.Println("Starting client", sessionId)
 		startTime := time.Now()
 
-		rtmpUrl, _ := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+		rtmpUrl, err := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 		// something wrong with edge
 		//rtmpUrl = client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 
@@ -81,7 +85,7 @@ func main() {
 					strconv.FormatFloat(float64(prog.Seconds), 'f', 2, 32)}
 			}
 		}()
-		err := test.Run()
+		err = test.Run()
 		if err != nil {
 			log.Println(err)
 		}

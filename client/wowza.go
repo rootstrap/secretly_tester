@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/xml"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -29,6 +30,9 @@ func GetEdgeUrl(host string, streamName string) (url string, err error) {
 		return
 	}
 	url = strings.Replace(parsed.Meta.Url, "_definst_", streamName+"_source", 1)
+	if !strings.Contains(url, streamName) {
+		err = errors.New("unexpected format, expected something like: <smil><head><meta base=..., got " + string(body))
+	}
 	return
 }
 
