@@ -17,7 +17,11 @@ func main() {
 	bumpNoFiles(8192)
 	var concurrentUsers int
 	var rampUpTime time.Duration
+	var existingUserOffset int
+	var forceNewUsers bool
 	flag.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
+	flag.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
+	flag.BoolVar(&forceNewUsers, "forcenew", false, "always create new users")
 	flag.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
 	flag.Parse()
 
@@ -42,46 +46,53 @@ func main() {
 	log.Println("Waiting for 3 seconds")
 	time.Sleep(3 * time.Second)
 
-	runN(concurrentUsers, rampUpTime, func() {
-		sessionId := client.RandomString(32)
-		log.Println("Starting client", sessionId)
+	runN(concurrentUsers, rampUpTime, func(i int) {
 		startTime := time.Now()
+
+		var fanUsername string
+		if forceNewUsers {
+			fanUsername = "testfan" + client.RandomString(12)
+		} else {
+			fanUsername = "testfan" + strconv.Itoa(existingUserOffset+i)
+		}
+		log.Println("Starting client", fanUsername)
+
+		fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
+		status := fan.SignIn()
+		if status != 200 {
+			log.Println("Fan", fanUsername, "signin failed, signing up")
+			status = fan.SignUp()
+			if status != 200 {
+				log.Println("Fan", fanUsername, "signup failed")
+				return
+			}
+		}
+		status = fan.EnterInfluencerStream(influencer.ID)
+
+		log.Println("Fan", fanUsername, "enters influencer stream status: ", status)
 
 		rtmpUrl, err := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		// something wrong with edge
-		//rtmpUrl = client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 
-		if false { //disable fan signup
-			fanUsername := "fan" + client.RandomString(12)
-			fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
-			status := fan.SignUp()
-			log.Println("Fan signup status: ", status)
-			if status == 200 {
-				status = fan.EnterInfluencerStream(influencer.ID)
-				log.Println("Fan enters influencer stream status: ", status)
-			}
-		}
-
-		log.Println("Connecting client", sessionId, "to", rtmpUrl)
+		log.Println("Connecting client", fanUsername, "to", rtmpUrl)
 		test := rtmp.NewRTMPTest(rtmpUrl)
 		go func() {
 			for prog := range test.Progress {
 				out <- []string{
-					sessionId,
+					fanUsername,
 					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
 					"StreamProgressPercent",
 					strconv.FormatFloat(float64(prog.Percent), 'f', 2, 32)}
 				out <- []string{
-					sessionId,
+					fanUsername,
 					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
 					"StreamProgressKiloBytes",
 					strconv.FormatFloat(float64(prog.KiloBytes), 'f', 2, 32)}
 				out <- []string{
-					sessionId,
+					fanUsername,
 					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
 					"StreamProgressSeconds",
 					strconv.FormatFloat(float64(prog.Seconds), 'f', 2, 32)}
@@ -121,9 +132,10 @@ func getInfluencer() (inf client.GetInfluencerResponse, err error) {
 	return
 }
 
-func runN(count int, rampUpTime time.Duration, body func()) {
+func runN(count int, rampUpTime time.Duration, body func(int)) {
 	var wait sync.WaitGroup
 	queue := make(chan struct{}, count)
+	i := 0
 	for {
 		time.Sleep(rampUpTime)
 		wait.Add(1)
@@ -133,8 +145,9 @@ func runN(count int, rampUpTime time.Duration, body func()) {
 				wait.Done()
 				<-queue
 			}()
-			body()
+			body(i)
 		}()
+		i++
 	}
 	wait.Wait()
 }
