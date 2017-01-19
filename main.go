@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"talkative_stream_test/client"
-	"talkative_stream_test/rtmp"
 	"time"
+
+	"bitbucket.org/msolutionio/talkative_stream_test/client"
+	"bitbucket.org/msolutionio/talkative_stream_test/rtmp"
 )
 
 func main() {
