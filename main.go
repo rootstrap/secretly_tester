@@ -15,17 +15,37 @@ import (
 )
 
 func main() {
-	bumpNoFiles(8192)
 	var concurrentUsers int
 	var rampUpTime time.Duration
 	var existingUserOffset int
 	var forceNewUsers bool
-	flag.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
-	flag.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
-	flag.BoolVar(&forceNewUsers, "forcenew", false, "always create new users")
-	flag.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
-	flag.Parse()
+	commandName := "runtest"
+	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
+		commandName = os.Args[1]
+	}
+	f := flag.NewFlagSet(os.Args[0]+" "+commandName, flag.ContinueOnError)
+	switch commandName {
+	case "runtest":
+		f.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
+		f.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
+		f.BoolVar(&forceNewUsers, "forcenew", false, "always create new users")
+		f.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
+		break
+	default:
+		os.Stderr.WriteString("Unknown command " + commandName + "\nshould be runtest\n")
+		os.Exit(2)
+	}
 
+	err := f.Parse(os.Args[2:])
+	if err != nil {
+		os.Exit(2)
+	}
+
+	bumpNoFiles(8192)
+	runTest(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers)
+}
+
+func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool) {
 	out := make(chan []string)
 	go func() {
 		csvWriter := csv.NewWriter(os.Stdout)
