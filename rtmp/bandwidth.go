@@ -38,7 +38,7 @@ func (t *rtmpTest) Run() error {
 }
 
 type RTMPProgress struct {
-	Seconds, KiloBytes, Percent float32
+	Seconds, KiloBytes float32
 }
 
 func sendProgresses(stream io.Reader, sink chan RTMPProgress) error {
@@ -93,8 +93,6 @@ func parseProgress(s string, prog *RTMPProgress) bool {
 			prog.KiloBytes = float32(float)
 		} else if i == 1 {
 			prog.Seconds = float32(float)
-		} else {
-			prog.Percent = float32(float)
 		}
 	}
 	return true

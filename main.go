@@ -127,11 +127,6 @@ func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 				out <- []string{
 					fanUsername,
 					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
-					"StreamProgressPercent",
-					strconv.FormatFloat(float64(prog.Percent), 'f', 2, 32)}
-				out <- []string{
-					fanUsername,
-					strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
 					"StreamProgressKiloBytes",
 					strconv.FormatFloat(float64(prog.KiloBytes), 'f', 2, 32)}
 				out <- []string{
