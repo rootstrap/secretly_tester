@@ -68,6 +68,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
+			log.Println("Connecting to remotes ", sshHosts)
 			err = remote.Connect()
 			if err != nil {
 				log.Fatal(err)
