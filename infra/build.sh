@@ -20,13 +20,14 @@ pushd infra
 terraform apply -var-file config.json -var "ami_id=$ami_id"
 
 nodeips=$(terraform output | grep -Eo '(\d{1,3}[.]){3}\d{1,3}')
+nodehosts=$(echo "$nodeips" | sed 's|^|ubuntu@|')
 
-for nodeip in $nodeips
+for nodehost in $nodehosts
 do
-    othernodes=$(echo "$nodeips" | grep -vF $nodeip)
+    othernodes=$(echo "$nodehosts" | grep -vF $nodehost)
     echo "$(echo $othernodes)" | ssh -o StrictHostKeyChecking=no\
                                      -o UserKnownHostsFile=/dev/null\
                                      -i files/id_rsa\
-                                     ubuntu@$nodeip\
+                                     $nodehost\
                                      -- sudo dd of=/etc/talkativenodes
 done

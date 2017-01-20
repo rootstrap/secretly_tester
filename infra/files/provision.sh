@@ -21,11 +21,18 @@ configssh() {
 }
 
 build() {
-    mkdir -p /tmp/goroot/src
-    cp -r "$fileroot" /tmp/goroot/src
-    pushd /tmp/goroot/src/$(basename "$fileroot")
+    mkdir -p /tmp/goroot/src/bitbucket.org/msolutionio
+    cp -r "$fileroot" /tmp/goroot/src/bitbucket.org/msolutionio
+    pushd /tmp/goroot/src/bitbucket.org/msolutionio/$(basename "$fileroot")
+    pwd
+    find .
+    GOPATH=/tmp/goroot go get
     GOPATH=/tmp/goroot go build
-    mv talkative_stream_test /usr/local/bin/talkativetest
+    mv 640.flv /home/ubuntu/
+    mv talkative_stream_test /usr/local/bin/talkative_stream_test
+    mv display.py /usr/local/bin/talkative_display.py
+    mv infra/files/runtest /usr/local/bin/talkative_runtest
+    chmod +x /usr/local/bin/talkative_display.py /usr/local/bin/talkative_runtest
     popd
 }
 
