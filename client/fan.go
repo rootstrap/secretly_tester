@@ -81,7 +81,8 @@ func (client *FanClient) UnfollowInfluencer(token string, influencerID int) erro
 }
 
 type JoinStreamResponse struct {
-	OriginIP string `json:"originIp"`
+	OriginIP           string `json:"originIp"`
+	InfluencerUsername string `json:"influencerUsername"`
 }
 
 func (client *FanClient) JoinStream(influencerID int, fanID int) (*JoinStreamResponse, error) {
