@@ -80,6 +80,7 @@ func main() {
 				commandString += fmt.Sprintf(" -influencerid %d", influencerID)
 				commandString += fmt.Sprintf(" -users %d", concurrentUsersPerNode)
 				commandString += fmt.Sprintf(" -ramp %v", rampUpTimePerNode.String())
+				commandString += " -forcenew"
 				remote.Start(commandString)
 			})
 		}
