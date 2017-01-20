@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"net/http"
 	"strconv"
@@ -45,14 +44,8 @@ func (client *InfluencerClient) InstagramSignInOrUp(email, instaToken string) (*
 		},
 	}
 	var influencerResp InfluencerResponse
-	res, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", url, req, &influencerResp, map[string]string{})
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != 200 {
-		return nil, errors.New("af")
-	}
-	return &influencerResp, nil
+	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", url, req, &influencerResp, map[string]string{})
+	return &influencerResp, err
 }
 
 func (client *InfluencerClient) CreateStream(influencerID int, token string) error {

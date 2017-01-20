@@ -79,7 +79,14 @@ func doJSONBodyRequest(client http.Client, meth, url string, reqBody interface{}
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, newError(req, resp, nil)
+	}
+	return resp, nil
 }
 
 func doJSONBodyRequestWithJSONResponse(client http.Client, meth, url string, reqBody, respBody interface{}, headers map[string]string) (*http.Response, error) {

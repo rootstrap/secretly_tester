@@ -37,10 +37,7 @@ func (client *FanClient) SignUp(email, username, password string) (*FanResponse,
 		},
 	}
 	var fanResponse FanResponse
-	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans", req, &fanResponse, map[string]string{})
-	if resp.StatusCode != 200 || fanResponse.Username == "" {
-		return nil, nil
-	}
+	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans", req, &fanResponse, map[string]string{})
 	return &fanResponse, err
 }
 
@@ -52,10 +49,7 @@ func (client *FanClient) SignIn(email, password string) (*FanResponse, error) {
 		},
 	}
 	var fanResponse FanResponse
-	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans/sign_in", req, &fanResponse, map[string]string{})
-	if resp.StatusCode != 200 || fanResponse.Username == "" {
-		return nil, nil
-	}
+	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans/sign_in", req, &fanResponse, map[string]string{})
 	return &fanResponse, err
 }
 
@@ -66,9 +60,6 @@ func (client *FanClient) FollowInfluencer(token string, influencerID int) error 
 	defer resp.Body.Close()
 	if err != nil {
 		return err
-	}
-	if resp.StatusCode != 200 {
-		return newError(nil, resp, nil)
 	}
 	return nil
 }
@@ -98,14 +89,8 @@ func (client *FanClient) JoinStream(influencerID int, fanID int) (*JoinStreamRes
 	body := map[string]int{"id": fanID}
 	headers := map[string]string{"key": client.StreamsToken}
 	var resBody JoinStreamResponse
-	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", url, body, &resBody, headers)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != 200 {
-		return nil, newError(nil, resp, nil)
-	}
-	return &resBody, nil
+	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", url, body, &resBody, headers)
+	return &resBody, err
 }
 
 func (client *FanClient) LeaveStream(influencerID int, fanID int) error {
