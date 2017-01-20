@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import curses
 from time import time, sleep
 from csv import reader as parse_events
