@@ -76,7 +76,7 @@ func main() {
 			runInfluencer(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
 				concurrentUsersPerNode := concurrentUsers / len(remote.Nodes)
 				rampUpTimePerNode := rampUpTime * time.Duration(len(remote.Nodes))
-				commandString := "./talkative_stream_test runfans"
+				commandString := "talkative_stream_test runfans"
 				commandString += fmt.Sprintf(" -influencerid %d", influencerID)
 				commandString += fmt.Sprintf(" -users %d", concurrentUsersPerNode)
 				commandString += fmt.Sprintf(" -ramp %v", rampUpTimePerNode.String())
@@ -124,10 +124,6 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		log.Println("Starting client", fanUsername)
 
 		fanRes, err := fanClient.SignIn(fanUsername+"@e.com", "Password42")
-		if err != nil {
-			log.Println("Fan", fanUsername, "signin failure", err)
-			return
-		}
 		if fanRes == nil {
 			fanRes, err = fanClient.SignUp(fanUsername+"@e.com", fanUsername, "Password42")
 			if err != nil {
