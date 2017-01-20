@@ -2,6 +2,7 @@ variable "aws_access_key" {}
 variable "aws_secret_key" {}
 variable "aws_region" {}
 variable "instance_type" {}
+variable "number_instances" {}
 variable "security_group_id" {}
 variable "subnet_id" {}
 variable "ami_id" {}
@@ -13,7 +14,7 @@ provider "aws" {
 }
 
 resource "aws_instance" "loadtest" {
-  count = 3
+  count = "${var.number_instances}"
   instance_type = "${var.instance_type}"
   ami = "${var.ami_id}"
   vpc_security_group_ids = ["${var.security_group_id}"]
