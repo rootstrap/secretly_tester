@@ -1,121 +1,125 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 )
 
-type fanInfo struct {
-	Id       int    `json:"id"`
+type FanClient struct {
+	HTTPClient     http.Client
+	BaseURL        string
+	StreamsBaseUrl string
+	StreamsToken   string
+}
+
+func NewFanClient() *FanClient {
+	return &FanClient{
+		BaseURL:        urlBase,
+		StreamsBaseUrl: streamsUrlBase,
+		StreamsToken:   streamsToken,
+	}
+}
+
+type FanResponse struct {
+	ID       int    `json:"id"`
 	Email    string `json:"email"`
 	Username string `json:"username"`
 	Token    string `json:"token"`
 }
 
-type fan struct {
-	Email, Username, Password string
-	Info                      fanInfo
-}
-
-func NewFan(email, username, password string) fan {
-	newFan := fan{}
-	newFan.Email = email
-	newFan.Username = username
-	newFan.Password = password
-	return newFan
-}
-
-func (this *fan) postRequest(requestUrl, jsonBodyStr string) (int, []byte) {
-	var jsonStr = []byte(jsonBodyStr)
-	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer(jsonStr))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "*/*")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
+func (client *FanClient) SignUp(email, username, password string) (*FanResponse, error) {
+	req := map[string]map[string]string{
+		"fan": map[string]string{
+			"email":                 email,
+			"username":              username,
+			"password":              password,
+			"password_confirmation": password,
+		},
 	}
+	var fanResponse FanResponse
+	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans", req, &fanResponse, map[string]string{})
+	if resp.StatusCode != 200 || fanResponse.Username == "" {
+		return nil, nil
+	}
+	return &fanResponse, err
+}
+
+func (client *FanClient) SignIn(email, password string) (*FanResponse, error) {
+	req := map[string]map[string]string{
+		"fan": map[string]string{
+			"email":    email,
+			"password": password,
+		},
+	}
+	var fanResponse FanResponse
+	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans/sign_in", req, &fanResponse, map[string]string{})
+	if resp.StatusCode != 200 || fanResponse.Username == "" {
+		return nil, nil
+	}
+	return &fanResponse, err
+}
+
+func (client *FanClient) FollowInfluencer(token string, influencerID int) error {
+	req := map[string]int{"influencer_id": influencerID}
+	headers := map[string]string{"x-fan-token": token}
+	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fan_influencers", req, headers)
 	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, body
-}
-
-func (this *fan) postRequestWithFanInfoResponse(requestUrl, jsonBodyStr string) (int, fanInfo) {
-	status, body := this.postRequest(requestUrl, jsonBodyStr)
-	fanInfoResp := fanInfo{}
-	if status == 200 {
-		json.Unmarshal(body, &fanInfoResp)
-	}
-	return status, fanInfoResp
-}
-
-func (this *fan) postRequestWithAuthorizationToken(requestUrl, token string, jsonBodyStr string) (int, []byte) {
-	req, err := http.NewRequest("POST", requestUrl, bytes.NewBuffer([]byte(jsonBodyStr)))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-FAN-TOKEN", token)
-	req.Header.Set("Accept", "*/*")
-	client := &http.Client{}
-	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	return resp.StatusCode, body
+	if resp.StatusCode != 200 {
+		return newError(nil, resp, nil)
+	}
+	return nil
 }
 
-func (this *fan) deleteRequestWithAuthorizationToken(requestUrl, token string) int {
-	req, err := http.NewRequest("POST", requestUrl, nil)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-FAN-TOKEN", token)
+func (client *FanClient) UnfollowInfluencer(token string, influencerID int) error {
+	url := client.BaseURL + "/api/v1/influencers/" + strconv.Itoa(influencerID) + "/fan_influencer"
+	req, err := http.NewRequest("DELETE", url, nil)
+	req.Header.Set("x-fan-token", token)
 	req.Header.Set("Accept", "*/*")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
+	resp, err := client.HTTPClient.Do(req)
 	defer resp.Body.Close()
-
-	return resp.StatusCode
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return newError(req, resp, nil)
+	}
+	return nil
 }
 
-func (this *fan) SignUp() int {
-	signupUrl := "/api/v1/fans"
-	var jsonBodyStr string = `{"fan":{"email":"` + this.Email + `","username":"` + this.Username + `","password":"` + this.Password + `","password_confirmation":"` + this.Password + `"}}`
-	status, info := this.postRequestWithFanInfoResponse(urlBase+signupUrl, jsonBodyStr)
-	this.Info = info
-	return status
+type JoinStreamResponse struct {
+	OriginIP string `json:"originIp"`
 }
 
-func (this *fan) SignIn() int {
-	signinUrl := "/api/v1/fans/sign_in"
-	var jsonBodyStr string = `{"fan":{"email":"` + this.Email + `","password":"` + this.Password + `"}}`
-	status, info := this.postRequestWithFanInfoResponse(urlBase+signinUrl, jsonBodyStr)
-	this.Info = info
-	return status
+func (client *FanClient) JoinStream(influencerID int, fanID int) (*JoinStreamResponse, error) {
+	url := client.StreamsBaseUrl + "/streams/" + strconv.Itoa(influencerID) + "/watchers"
+	body := map[string]int{"id": fanID}
+	headers := map[string]string{"key": client.StreamsToken}
+	var resBody JoinStreamResponse
+	resp, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", url, body, &resBody, headers)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, newError(nil, resp, nil)
+	}
+	return &resBody, nil
 }
 
-func (this *fan) SignInOrUpWithInstagram(instagramToken string) int {
-	signInOrUpWithInstagramUrl := "/api/v1/fans/instagram_sign_in_or_up"
-	var jsonBodyStr string = `{"fan":{"email":"` + this.Email + `","oauth_token":"` + instagramToken + `"}}`
-	status, info := this.postRequestWithFanInfoResponse(urlBase+signInOrUpWithInstagramUrl, jsonBodyStr)
-	this.Info = info
-	return status
-}
-
-func (this *fan) EnterInfluencerStream(influencerId int) int {
-	enterInfluencerStreamUrl := "/api/v1/fan_influencers"
-	status, _ := this.postRequestWithAuthorizationToken(urlBase+enterInfluencerStreamUrl, this.Info.Token, `{"influencer_id":`+strconv.Itoa(influencerId)+`}`)
-	return status
-}
-
-func (this *fan) LeaveInfluencerStream(influencerId int) int {
-	leaveInfluencerStreamUrl := "/api/v1/influencers/" + strconv.Itoa(influencerId) + "/watchers"
-	status := this.deleteRequestWithAuthorizationToken(urlBase+leaveInfluencerStreamUrl, this.Info.Token)
-	return status
+func (client *FanClient) LeaveStream(influencerID int, fanID int) error {
+	url := client.StreamsBaseUrl + "/streams/" + strconv.Itoa(influencerID) + "/watchers/" + strconv.Itoa(fanID)
+	req, err := http.NewRequest("DELETE", url, nil)
+	req.Header.Set("Key", client.StreamsToken)
+	req.Header.Set("Accept", "*/*")
+	resp, err := client.HTTPClient.Do(req)
+	defer resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return newError(req, resp, nil)
+	}
+	return nil
 }

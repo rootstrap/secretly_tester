@@ -46,6 +46,8 @@ func main() {
 }
 
 func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool) {
+	fanClient := client.NewFanClient()
+
 	out := make(chan []string)
 	go func() {
 		csvWriter := csv.NewWriter(os.Stdout)
@@ -58,7 +60,10 @@ func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		}
 	}()
 
-	influencer, _ := getInfluencer()
+	influencer, err := getInfluencer()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	originUrl := client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 	log.Println("Pushing to", originUrl)
@@ -78,21 +83,38 @@ func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		}
 		log.Println("Starting client", fanUsername)
 
-		fan := client.NewFan(fanUsername+"@e.com", fanUsername, "Password42")
-		status := fan.SignIn()
-		if status != 200 {
-			log.Println("Fan", fanUsername, "signin failed, signing up")
-			status = fan.SignUp()
-			if status != 200 {
-				log.Println("Fan", fanUsername, "signup failed")
+		fanRes, err := fanClient.SignIn(fanUsername+"@e.com", "Password42")
+		if err != nil {
+			log.Println("Fan", fanUsername, "signin failure", err)
+			return
+		}
+		if fanRes == nil {
+			fanRes, err = fanClient.SignUp(fanUsername+"@e.com", fanUsername, "Password42")
+			if err != nil {
+				log.Println("Fan", fanUsername, "signup failure", err)
 				return
 			}
+		} else {
+			log.Println("Fan", fanUsername, "signed in")
 		}
-		status = fan.EnterInfluencerStream(influencer.ID)
+		if err = fanClient.FollowInfluencer(fanRes.Token, influencer.ID); err != nil {
+			log.Println("Fan", fanUsername, "signup failure", err)
+			return
+		}
+		log.Println("Fan", fanUsername, "followed influencer")
+		joined, err := fanClient.JoinStream(influencer.ID, fanRes.ID)
+		if err != nil {
+			log.Println("Fan", fanUsername, "join failure", err)
+			return
+		}
+		log.Println("Fan", fanUsername, "joined stream")
+		if err = fanClient.LeaveStream(influencer.ID, fanRes.ID); err != nil {
+			log.Println("Fan", fanUsername, "leave failure", err)
+			return
+		}
+		log.Println("Fan", fanUsername, "left stream")
 
-		log.Println("Fan", fanUsername, "enters influencer stream status: ", status)
-
-		rtmpUrl, err := client.GetEdgeUrl(influencer.ServerStatus.OriginIP, influencer.Username)
+		rtmpUrl, err := client.GetEdgeUrl(joined.OriginIP, influencer.Username)
 		if err != nil {
 			log.Println(err)
 			return
@@ -126,31 +148,37 @@ func runTest(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 	})
 }
 
-func getInfluencer() (inf client.GetInfluencerResponse, err error) {
-	influencer := client.NewInfluencer("4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "hrant@msolution.io")
+func getInfluencer() (inf *client.InfluencerResponse, err error) {
+	influencerClient := client.NewInfluencerClient()
+
 	log.Println("SignIn as influencer", "hrant@msolution.io")
-	status := influencer.SignIn()
-
-	if status == 200 {
-		log.Println("Creating stream status")
-		status = influencer.CreateStream()
-		log.Println("Creating stream alerts")
-		status = influencer.CreateStreamAlerts()
-
-		for {
-			log.Println("Polling influencer for readiness")
-			inf, err = influencer.GetInfluencer()
-			if err != nil {
-				return
-			}
-			if inf.ServerStatus.Ready {
-				log.Println("Influencer ready")
-				return
-			}
-			time.Sleep(5 * time.Second)
-		}
+	inf, err = influencerClient.InstagramSignInOrUp("hrant@msolution.io", "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57")
+	if err != nil {
+		return
 	}
-	return
+
+	log.Println("Creating stream status")
+	if err = influencerClient.CreateStream(inf.ID, inf.Token); err != nil {
+		return
+	}
+
+	log.Println("Creating stream alerts")
+	if err = influencerClient.CreateStreamAlerts(inf.ID, inf.Token); err != nil {
+		return
+	}
+
+	for {
+		log.Println("Polling influencer for readiness")
+		inf, err = influencerClient.Get(inf.ID, inf.Token)
+		if err != nil {
+			return
+		}
+		if inf.ServerStatus.Ready {
+			log.Println("Influencer ready")
+			return
+		}
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func runN(count int, rampUpTime time.Duration, body func(int)) {
