@@ -38,6 +38,9 @@ func (client *FanClient) SignUp(email, username, password string) (*FanResponse,
 	}
 	var fanResponse FanResponse
 	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans", req, &fanResponse, map[string]string{})
+	if err != nil {
+		return nil, err
+	}
 	return &fanResponse, err
 }
 
@@ -50,6 +53,9 @@ func (client *FanClient) SignIn(email, password string) (*FanResponse, error) {
 	}
 	var fanResponse FanResponse
 	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fans/sign_in", req, &fanResponse, map[string]string{})
+	if err != nil {
+		return nil, err
+	}
 	return &fanResponse, err
 }
 
