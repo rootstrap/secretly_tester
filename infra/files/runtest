@@ -14,12 +14,12 @@ trap "kill $tailpid $testpid > /dev/null 2>&1" EXIT
 
 while ps --pid $testpid > /dev/null && [ $(cat lastrun.stdout | wc -c) -eq 0 ]
 do
-	sleep 1
+    sleep 1
 done
 
 kill $tailpid > /dev/null 2>&1
 
 if [ $(cat lastrun.stdout | wc -c) -ne 0 ]
 then
-	tail -f lastrun.stdout | talkative_display.py
+    tail -f lastrun.stdout | grep -E '^testfan\w{12},[0-9.]{3,},(StreamProgressKiloBytes|StreamProgressSeconds),[0-9.]+$' | talkative_display.py
 fi
