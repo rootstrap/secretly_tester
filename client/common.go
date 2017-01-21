@@ -55,7 +55,7 @@ func doReqRep(client http.Client, meth, url string, headers map[string]string) e
 		req.Header.Set(key, value)
 	}
 	resp, err := client.Do(req)
-	resp.Body.Close()
+	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
