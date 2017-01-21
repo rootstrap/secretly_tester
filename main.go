@@ -26,6 +26,8 @@ func main() {
 	var sshHosts string
 	var sshPKPath string
 	var influencerID int
+	var influencerEmail string
+	var influencerToken string
 	commandName := "runtest"
 	args := os.Args[1:]
 	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
@@ -41,6 +43,8 @@ func main() {
 	case "runtest":
 		f.StringVar(&sshHosts, "sshhosts", "", "space separated list of user@host to run test on (clustered)")
 		f.StringVar(&sshPKPath, "sshkeyfile", "", "path to SSH private key file")
+		f.StringVar(&influencerEmail, "email", "hrant@msolution.io", "influencer email")
+		f.StringVar(&influencerToken, "token", "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "influencer token")
 		break
 	case "runfans":
 		f.IntVar(&influencerID, "influencerid", 0, "influencer id to have fans join")
@@ -60,7 +64,7 @@ func main() {
 	switch commandName {
 	case "runtest":
 		if sshHosts == "" {
-			runInfluencer(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
 				runFans(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, influencerID, csvWriter())
 			})
 		} else {
@@ -73,7 +77,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			runInfluencer(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
 				concurrentUsersPerNode := concurrentUsers / len(remote.Nodes)
 				rampUpTimePerNode := rampUpTime * time.Duration(len(remote.Nodes))
 				commandString := "talkative_stream_test runfans"
@@ -91,8 +95,8 @@ func main() {
 	}
 }
 
-func runInfluencer(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool, run func(int)) {
-	influencer, err := getInfluencer()
+func runInfluencer(email, token string, concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool, run func(int)) {
+	influencer, err := getInfluencer(email, token)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -179,11 +183,11 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 	})
 }
 
-func getInfluencer() (inf *client.InfluencerResponse, err error) {
+func getInfluencer(email, token string) (inf *client.InfluencerResponse, err error) {
 	influencerClient := client.NewInfluencerClient()
 
-	log.Println("SignIn as influencer", "hrant@msolution.io")
-	infCreds, err := influencerClient.InstagramSignInOrUp("hrant@msolution.io", "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57")
+	log.Println("SignIn as influencer", email)
+	infCreds, err := influencerClient.InstagramSignInOrUp(email, token)
 	if err != nil {
 		return
 	}
