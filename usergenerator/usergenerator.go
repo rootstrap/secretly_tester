@@ -36,7 +36,7 @@ func (ug *UserGenerator) Gen() (string, bool) {
 	if ug.shouldMakeRandomUser() {
 		return "testfan" + randomString(20), true
 	}
-	return "testfan" + strconv.Itoa(int(atomic.AddInt32(&ug.offset, 1))+1), false
+	return "testfan" + strconv.Itoa(int(atomic.AddInt32(&ug.offset, 1))-1), false
 }
 
 func (ug *UserGenerator) GetExisting(n int) []string {
