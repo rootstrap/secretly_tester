@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"time"
 
+	"bitbucket.org/msolutionio/talkative_stream_test/interleaver"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -42,7 +43,7 @@ func (node *Node) Connect() error {
 		client.Close()
 		return err
 	}
-	go io.Copy(os.Stdout, stdout)
+	go interleaver.Stdout.Copy(stdout)
 	stderr, err := session.StderrPipe()
 	if err != nil {
 		session.Close()
