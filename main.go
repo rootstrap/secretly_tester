@@ -15,6 +15,7 @@ import (
 	"bitbucket.org/msolutionio/talkative_stream_test/client"
 	"bitbucket.org/msolutionio/talkative_stream_test/remote"
 	"bitbucket.org/msolutionio/talkative_stream_test/rtmp"
+	"bitbucket.org/msolutionio/talkative_stream_test/usergenerator"
 )
 
 func main() {
@@ -22,7 +23,7 @@ func main() {
 	var concurrentUsers int
 	var rampUpTime time.Duration
 	var existingUserOffset int
-	var forceNewUsers bool
+	var percentNewUsers int
 	var sshHosts string
 	var sshPKPath string
 	var influencerID int
@@ -37,7 +38,7 @@ func main() {
 	f := flag.NewFlagSet(os.Args[0]+" "+commandName, flag.ContinueOnError)
 	f.IntVar(&concurrentUsers, "users", 10, "number of concurrent users")
 	f.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
-	f.BoolVar(&forceNewUsers, "forcenew", false, "always create new users")
+	f.IntVar(&percentNewUsers, "percentnew", 0, "0-100 percentage of new fan users in test")
 	f.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
 	switch commandName {
 	case "runtest":
@@ -61,11 +62,16 @@ func main() {
 		os.Exit(2)
 	}
 
+	userGenerator, err = usergenerator.NewUserGenerator(int32(existingUserOffset), int32(percentNewUsers))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	switch commandName {
 	case "runtest":
 		if sshHosts == "" {
-			runInfluencer(influencerEmail, influencerToken, concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
-				runFans(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, influencerID, csvWriter())
+			runInfluencer(influencerEmail, influencerToken, concurrentUsers, percentNewUsers, func(influencerID int) {
+				runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
 			})
 		} else {
 			remote, err := remote.NewRemote(sshHosts, sshPKPath)
@@ -77,29 +83,35 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			runInfluencer(influencerEmail, influencerToken, concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, concurrentUsers, percentNewUsers, func(influencerID int) {
 				concurrentUsersPerNode := concurrentUsers / len(remote.Nodes)
 				rampUpTimePerNode := rampUpTime * time.Duration(len(remote.Nodes))
 				commandString := "talkative_stream_test runfans"
 				commandString += fmt.Sprintf(" -influencerid %d", influencerID)
 				commandString += fmt.Sprintf(" -users %d", concurrentUsersPerNode)
 				commandString += fmt.Sprintf(" -ramp %v", rampUpTimePerNode.String())
-				commandString += " -forcenew"
-				remote.Start(commandString)
+				commandString += fmt.Sprintf(" -percentnew %d", percentNewUsers)
+				i := 0
+				remote.StartEach(func() (string, error) {
+					offset := existingUserOffset + concurrentUsers*4*i
+					i++
+					return commandString + fmt.Sprintf(" -existingoffset %d", offset), nil
+				})
 			})
 		}
 		break
 	case "runfans":
-		runFans(concurrentUsers, rampUpTime, existingUserOffset, forceNewUsers, influencerID, csvWriter())
+		runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
 		break
 	}
 }
 
-func runInfluencer(email, token string, concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool, run func(int)) {
-	influencer, err := getInfluencer(email, token)
-	if err != nil {
-		log.Fatal(err)
-	}
+func runInfluencer(email, token string, concurrentUsers, percentNewUsers int, run func(int)) {
+	influencerCreds := signInInfluencer(email, token)
+
+	precreateFans(influencerCreds.ID, concurrentUsers*(100-percentNewUsers)/100)
+
+	influencer := startInfluencer(influencerCreds)
 
 	originURL := client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 	log.Println("Pushing to", originURL)
@@ -113,35 +125,71 @@ func runInfluencer(email, token string, concurrentUsers int, rampUpTime time.Dur
 	pusher.Run()
 }
 
-func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, forceNewUsers bool, influencerID int, out chan []string) {
-	fanClient := client.NewFanClient()
-
-	runN(concurrentUsers, rampUpTime, func(i int) {
-		startTime := time.Now()
-
-		var fanUsername string
-		if forceNewUsers {
-			fanUsername = "testfan" + client.RandomString(12)
-		} else {
-			fanUsername = "testfan" + strconv.Itoa(existingUserOffset+i)
-		}
-		log.Println("Starting client", fanUsername)
-
-		fanRes, err := fanClient.SignIn(fanUsername+"@e.com", "Password42")
-		if fanRes == nil {
-			fanRes, err = fanClient.SignUp(fanUsername+"@e.com", fanUsername, "Password42")
+func precreateFans(influencerID int, nUsers int) {
+	log.Printf("Pre-creating %d users and following influencer (this may take a while)\n", nUsers)
+	for _, fanUsername := range userGenerator.GetExisting(nUsers) {
+		fanRes, err := fanClient.SignIn(fanUsername+"@e.com", password)
+		if err != nil {
+			log.Println("Fan", fanUsername, "signin failure")
+			fanRes, err = fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
 			if err != nil {
 				log.Println("Fan", fanUsername, "signup failure", err)
-				return
 			}
+			log.Println("Fan", fanUsername, "signed up")
 		} else {
 			log.Println("Fan", fanUsername, "signed in")
 		}
 		if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
-			log.Println("Fan", fanUsername, "signup failure", err)
-			return
+			log.Println("Fan", fanUsername, "follow failure", err)
 		}
 		log.Println("Fan", fanUsername, "followed influencer")
+	}
+}
+
+func fanSignUpAndFollow(fanUsername string, influencerID int) (*client.FanResponse, error) {
+	fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
+	if err != nil {
+		log.Println("Fan", fanUsername, "signup failure", err)
+		return nil, err
+	}
+	log.Println("Fan", fanUsername, "signed up")
+	if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
+		log.Println("Fan", fanUsername, "signup failure", err)
+	}
+	log.Println("Fan", fanUsername, "followed influencer")
+	return fanRes, err
+}
+
+func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, influencerID int, out chan []string) {
+	runN(concurrentUsers, rampUpTime, func(_ int) {
+		startTime := time.Now()
+
+		fanUsername, newUser := userGenerator.Gen()
+		log.Println("Starting client", fanUsername)
+
+		var fanRes *client.FanResponse
+		var err error
+		if newUser {
+			fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
+			if err != nil {
+				log.Println("Fan", fanUsername, "signup failure", err)
+				return
+			}
+			log.Println("Fan", fanUsername, "signed up")
+			if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
+				log.Println("Fan", fanUsername, "follow failure", err)
+				return
+			}
+			log.Println("Fan", fanUsername, "followed influencer")
+		} else {
+			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
+			if err != nil {
+				log.Println("Fan", fanUsername, "signin failure", err)
+				return
+			}
+			log.Println("Fan", fanUsername, "signed in")
+		}
+
 		joined, err := fanClient.JoinStream(influencerID, fanRes.ID)
 		if err != nil {
 			log.Println("Fan", fanUsername, "join failure", err)
@@ -183,34 +231,35 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 	})
 }
 
-func getInfluencer(email, token string) (inf *client.InfluencerResponse, err error) {
-	influencerClient := client.NewInfluencerClient()
-
+func signInInfluencer(email, token string) *client.InfluencerResponse {
 	log.Println("SignIn as influencer", email)
 	infCreds, err := influencerClient.InstagramSignInOrUp(email, token)
 	if err != nil {
-		return
+		log.Fatal("Failed to sign in", err)
 	}
+	return infCreds
+}
 
+func startInfluencer(infCreds *client.InfluencerResponse) (inf *client.InfluencerResponse) {
 	log.Println("Creating stream status")
-	if err = influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
-		return
+	if err := influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
+		log.Fatal(err)
 	}
 
 	log.Println("Creating stream alerts")
-	if err = influencerClient.CreateStreamAlerts(infCreds.ID, infCreds.Token); err != nil {
-		return
+	if err := influencerClient.CreateStreamAlerts(infCreds.ID, infCreds.Token); err != nil {
+		log.Fatal(err)
 	}
 
 	for {
 		log.Println("Polling influencer for readiness")
-		inf, err = influencerClient.Get(infCreds.ID, infCreds.Token)
+		inf, err := influencerClient.Get(infCreds.ID, infCreds.Token)
 		if err != nil {
-			return
+			log.Fatal(err)
 		}
 		if inf.ServerStatus.Ready {
 			log.Println("Influencer ready")
-			return
+			return inf
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -266,3 +315,11 @@ func bumpNoFiles(noFiles uint64) error {
 	}
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
 }
+
+var fanClient = client.NewFanClient()
+
+var influencerClient = client.NewInfluencerClient()
+
+var userGenerator *usergenerator.UserGenerator
+
+var password = "Password42"

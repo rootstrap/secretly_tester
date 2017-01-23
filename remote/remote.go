@@ -122,6 +122,19 @@ func (remote *Remote) Start(cmd string) error {
 	return nil
 }
 
+func (remote *Remote) StartEach(cmd func() (string, error)) error {
+	for _, node := range remote.Nodes {
+		cmd, err := cmd()
+		if err != nil {
+			return err
+		}
+		if err = node.Start(cmd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func privateKeyAutMethod(file string) (method ssh.AuthMethod, err error) {
 	buffer, err := ioutil.ReadFile(file)
 	if err != nil {
