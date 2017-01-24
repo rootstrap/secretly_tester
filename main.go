@@ -30,6 +30,7 @@ func main() {
 	var influencerEmail string
 	var influencerToken string
 	var testVideoPath string
+	var precreateFans bool
 	commandName := "runtest"
 	args := os.Args[1:]
 	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
@@ -48,6 +49,7 @@ func main() {
 		f.StringVar(&influencerEmail, "email", "hrant@msolution.io", "influencer email")
 		f.StringVar(&influencerToken, "token", "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "influencer token")
 		f.StringVar(&testVideoPath, "videopath", "640.flv", "path to video file used in test")
+		f.BoolVar(&precreateFans, "precreatefans", false, "pre-create fans and follow influencer (not needed on repeat runs)")
 		break
 	case "runfans":
 		f.IntVar(&influencerID, "influencerid", 0, "influencer id to have fans join")
@@ -72,7 +74,7 @@ func main() {
 	switch commandName {
 	case "runtest":
 		if sshHosts == "" {
-			runInfluencer(influencerEmail, influencerToken, testVideoPath, concurrentUsers, percentNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, testVideoPath, precreateFans, concurrentUsers, percentNewUsers, func(influencerID int) {
 				runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
 			})
 		} else {
@@ -85,7 +87,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			runInfluencer(influencerEmail, influencerToken, testVideoPath, concurrentUsers, percentNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, testVideoPath, precreateFans, concurrentUsers, percentNewUsers, func(influencerID int) {
 				concurrentUsersPerNode := concurrentUsers / len(remote.Nodes)
 				rampUpTimePerNode := rampUpTime * time.Duration(len(remote.Nodes))
 				commandString := "talkative_stream_test runfans"
@@ -108,10 +110,12 @@ func main() {
 	}
 }
 
-func runInfluencer(email, token, testVideoPath string, concurrentUsers, percentNewUsers int, run func(int)) {
+func runInfluencer(email, token, testVideoPath string, shouldPrecreatFans bool, concurrentUsers, percentNewUsers int, run func(int)) {
 	influencerCreds := signInInfluencer(email, token)
 
-	precreateFans(influencerCreds.ID, concurrentUsers*(100-percentNewUsers)/100)
+	if shouldPrecreatFans {
+		precreateFans(influencerCreds.ID, concurrentUsers*(100-percentNewUsers)/100)
+	}
 
 	influencer := startInfluencer(influencerCreds)
 
@@ -175,24 +179,21 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		var fanRes *client.FanResponse
 		var err error
 		if newUser {
-			fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
+			fanRes, err = fanSignUpAndFollow(fanUsername, influencerID)
 			if err != nil {
-				log.Println("Fan", fanUsername, "signup failure", err)
 				return
 			}
-			log.Println("Fan", fanUsername, "signed up")
-			if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
-				log.Println("Fan", fanUsername, "follow failure", err)
-				return
-			}
-			log.Println("Fan", fanUsername, "followed influencer")
 		} else {
 			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
 			if err != nil {
 				log.Println("Fan", fanUsername, "signin failure", err)
-				return
+				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID)
+				if err != nil {
+					return
+				}
+			} else {
+				log.Println("Fan", fanUsername, "signed in")
 			}
-			log.Println("Fan", fanUsername, "signed in")
 		}
 
 		joined, err := fanClient.JoinStream(influencerID, fanRes.ID)
