@@ -19,7 +19,7 @@ class Reporter(object):
     def update(self, sessions):
         self.scr.addstr(0, 0, "%d sessions established" % len(sessions))
         streams_dropped = sum(1 for s in sessions.itervalues() if s.dropped)
-        self.scr.addstr(2, 0, "Streams lagged: [{0:80}] {1}/{2}".format('#' * (streams_dropped / len(sessions) * 80), streams_dropped, len(sessions)))
+        self.scr.addstr(2, 0, "Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_dropped / len(sessions) * 80), streams_dropped, len(sessions)))
         if sessions:
             avgrate = sum(s.bytes_sec_average for s in sessions.itervalues()) / len(sessions)
             self.scr.addstr(4, 0, "Average rate {0:8.2f} kbps".format(avgrate * 8))
