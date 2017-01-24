@@ -7,7 +7,7 @@ testpid="$!"
 
 sleep 0.5
 
-tail -f lastrun.stderr >&2 &
+tail -n +0 -f lastrun.stderr >&2 &
 tailpid="$!"
 
 trap "kill $tailpid $testpid > /dev/null 2>&1" EXIT
