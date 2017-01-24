@@ -241,28 +241,30 @@ func signInInfluencer(email, token string) *client.InfluencerResponse {
 }
 
 func startInfluencer(infCreds *client.InfluencerResponse) (inf *client.InfluencerResponse) {
-	log.Println("Creating stream status")
-	if err := influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
-		log.Fatal(err)
-	}
-
+	var err error
 	log.Println("Creating stream alerts")
-	if err := influencerClient.CreateStreamAlerts(infCreds.ID, infCreds.Token); err != nil {
+	if err = influencerClient.CreateStreamAlerts(infCreds.ID, infCreds.Token); err != nil {
 		log.Fatal(err)
 	}
 
 	for {
 		log.Println("Polling influencer for readiness")
-		inf, err := influencerClient.Get(infCreds.ID, infCreds.Token)
+		inf, err = influencerClient.Get(infCreds.ID, infCreds.Token)
 		if err != nil {
 			log.Fatal(err)
 		}
 		if inf.ServerStatus.Ready {
 			log.Println("Influencer ready")
-			return inf
+			break
 		}
 		time.Sleep(5 * time.Second)
 	}
+
+	log.Println("Creating stream status")
+	if err := influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
+		log.Fatal(err)
+	}
+	return
 }
 
 func runN(count int, rampUpTime time.Duration, body func(int)) {
