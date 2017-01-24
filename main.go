@@ -97,7 +97,7 @@ func main() {
 				commandString += fmt.Sprintf(" -percentnew %d", percentNewUsers)
 				i := 0
 				remote.StartEach(func() (string, error) {
-					offset := existingUserOffset + concurrentUsers*4*i
+					offset := existingUserOffset + concurrentUsers*2*i
 					i++
 					return commandString + fmt.Sprintf(" -existingoffset %d", offset), nil
 				})
