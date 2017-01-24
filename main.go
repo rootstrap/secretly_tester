@@ -186,7 +186,7 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		} else {
 			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
 			if err != nil {
-				log.Println("Fan", fanUsername, "signin failure", err)
+				log.Println("Fan", fanUsername, "signin failure")
 				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID)
 				if err != nil {
 					return
