@@ -29,6 +29,7 @@ func main() {
 	var influencerID int
 	var influencerEmail string
 	var influencerToken string
+	var testVideoPath string
 	commandName := "runtest"
 	args := os.Args[1:]
 	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
@@ -46,6 +47,7 @@ func main() {
 		f.StringVar(&sshPKPath, "sshkeyfile", "", "path to SSH private key file")
 		f.StringVar(&influencerEmail, "email", "hrant@msolution.io", "influencer email")
 		f.StringVar(&influencerToken, "token", "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57", "influencer token")
+		f.StringVar(&testVideoPath, "videopath", "640.flv", "path to video file used in test")
 		break
 	case "runfans":
 		f.IntVar(&influencerID, "influencerid", 0, "influencer id to have fans join")
@@ -70,7 +72,7 @@ func main() {
 	switch commandName {
 	case "runtest":
 		if sshHosts == "" {
-			runInfluencer(influencerEmail, influencerToken, concurrentUsers, percentNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, testVideoPath, concurrentUsers, percentNewUsers, func(influencerID int) {
 				runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
 			})
 		} else {
@@ -83,7 +85,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			runInfluencer(influencerEmail, influencerToken, concurrentUsers, percentNewUsers, func(influencerID int) {
+			runInfluencer(influencerEmail, influencerToken, testVideoPath, concurrentUsers, percentNewUsers, func(influencerID int) {
 				concurrentUsersPerNode := concurrentUsers / len(remote.Nodes)
 				rampUpTimePerNode := rampUpTime * time.Duration(len(remote.Nodes))
 				commandString := "talkative_stream_test runfans"
@@ -106,7 +108,7 @@ func main() {
 	}
 }
 
-func runInfluencer(email, token string, concurrentUsers, percentNewUsers int, run func(int)) {
+func runInfluencer(email, token, testVideoPath string, concurrentUsers, percentNewUsers int, run func(int)) {
 	influencerCreds := signInInfluencer(email, token)
 
 	precreateFans(influencerCreds.ID, concurrentUsers*(100-percentNewUsers)/100)
@@ -115,14 +117,17 @@ func runInfluencer(email, token string, concurrentUsers, percentNewUsers int, ru
 
 	originURL := client.GetOriginUrl(influencer.ServerStatus.OriginIP, influencer.Username)
 	log.Println("Pushing to", originURL)
-	pusher := rtmp.NewRTMPPusher(originURL, "640.flv")
+	pusher := rtmp.NewRTMPPusher(originURL, testVideoPath)
 
 	go func() {
 		log.Println("Waiting 5 seconds to start fans")
 		time.Sleep(5 * time.Second)
 		run(influencer.ID)
 	}()
-	pusher.Run()
+	err := pusher.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func precreateFans(influencerID int, nUsers int) {

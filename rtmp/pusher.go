@@ -1,6 +1,8 @@
 package rtmp
 
 import "os/exec"
+import "io/ioutil"
+import "os"
 
 type rtmpPush struct {
 	url  string
@@ -20,8 +22,25 @@ func (t *rtmpPush) Run() error {
 	if err != nil {
 		return err
 	}
+	file, err := ioutil.TempFile("", "talkativetestconcatenation")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	for i := 0; i < nLoops; i++ {
+		_, err := file.WriteString("file '" + t.path + "'\n")
+		if err != nil {
+			file.Close()
+			return err
+		}
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
 	t.cmd = exec.Command(ffmpegPath, "-re", "-i", t.path, "-acodec", "copy", "-vcodec", "copy", "-f", "flv", t.url)
 	t.cmd.Stdout = nil
 	t.cmd.Stderr = nil
 	return t.cmd.Run()
 }
+
+var nLoops = 200
