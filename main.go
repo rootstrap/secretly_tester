@@ -12,10 +12,10 @@ import (
 
 	"fmt"
 
-	"bitbucket.org/msolutionio/talkative_stream_test/client"
-	"bitbucket.org/msolutionio/talkative_stream_test/remote"
-	"bitbucket.org/msolutionio/talkative_stream_test/rtmp"
-	"bitbucket.org/msolutionio/talkative_stream_test/usergenerator"
+	"github.com/toptier/secretly_tester/client"
+	"github.com/toptier/secretly_tester/remote"
+	"github.com/toptier/secretly_tester/rtmp"
+	"github.com/toptier/secretly_tester/usergenerator"
 )
 
 func main() {

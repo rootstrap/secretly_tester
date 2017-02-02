@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"time"
 
-	"bitbucket.org/msolutionio/talkative_stream_test/interleaver"
+	"github.com/toptier/secretly_tester/interleaver"
 	"golang.org/x/crypto/ssh"
 )
 

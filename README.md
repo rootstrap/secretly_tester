@@ -19,8 +19,8 @@ Talkative streaming test
 * Build the project:
     ```
     $ cd $GOPATH
-    $ go get bitbucket.org/msolutionio/talkative_stream_test
-    $ go install bitbucket.org/msolutionio/talkative_stream_test
+    $ go get github.com/toptier/secretly_tester
+    $ go install github.com/toptier/secretly_tester
     ```
 
 ### Build infrastructure ###
@@ -51,7 +51,7 @@ and use your system's package management to install git
 #### Creating infrastructure
 
 ```
-$ cd ${GOPATH}/src/bitbucket.org/msolutionio/talkative_stream_test/infra # or wherever you've unpacked this repo
+$ cd ${GOPATH}/src/github.com/toptier/secretly_tester/infra # or wherever you've unpacked this repo
 $ cat config.json # adjust config.json for right number of instances etc.
 {
     "aws_access_key": "AKIAFEQWEQ",
@@ -104,6 +104,6 @@ $ talkative_runtest --users 10 # runs test with 10 users
 ### Teardown infrastructure
 
 ```
-$ cd ${GOPATH}/src/bitbucket.org/msolutionio/talkative_stream_test/infra # or wherever you've unpacked this repo
+$ cd ${GOPATH}/src/github.com/toptier/secretly_tester/infra # or wherever you've unpacked this repo
 $ ./destroy.sh
 ```
