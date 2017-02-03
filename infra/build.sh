@@ -3,6 +3,9 @@
 set -eou pipefail
 pushd $(dirname "$0")/..
 
+chmod -rwx infra/files/id_rsa
+chmod u+r infra/files/id_rsa
+
 revision=$(git rev-parse ${1:-HEAD})
 
 git archive $revision | gzip > /tmp/talkativebuild.tgz
