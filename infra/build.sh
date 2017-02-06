@@ -22,7 +22,7 @@ echo $ami_id
 pushd infra
 terraform apply -var-file config.json -var "ami_id=$ami_id"
 
-nodeips=$(terraform output | grep -Eo '(\d{1,3}[.]){3}\d{1,3}')
+nodeips=$(terraform output | grep -Eo '([0-9]{1,3}[.]){3}[0-9]{1,3}')
 nodehosts=$(echo "$nodeips" | sed 's|^|ubuntu@|')
 
 for nodehost in $nodehosts
