@@ -30,7 +30,7 @@ do
     while true
     do
         echo waiting for $nodehost
-        if echo DOHANGUPPLZ | nc -G 5 -w 2 $(echo $nodehost | cut -d@ -f2) 22
+        if echo DOHANGUPPLZ | nc -w 2 $(echo $nodehost | cut -d@ -f2) 22
         then
             echo ok
             break
