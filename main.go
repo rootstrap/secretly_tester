@@ -168,6 +168,14 @@ func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps 
 		time.Sleep(3 * time.Second)
 	}
 
+	if err = fanClient.UseCode(fanRes.Token); err != nil {
+		log.Println("Fan", fanUsername, "Use code failure", err)
+	}
+	log.Println("Fan", fanUsername, "Use code")
+	if sleepBetweenSteps {
+		time.Sleep(5 * time.Second)
+	}
+
 	if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
 		log.Println("Fan", fanUsername, "signup failure", err)
 	}
