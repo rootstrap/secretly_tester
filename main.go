@@ -31,6 +31,7 @@ func main() {
 	var influencerToken string
 	var testVideoPath string
 	var precreateFans bool
+	var sleepBetweenSteps bool
 	commandName := "runtest"
 	args := os.Args[1:]
 	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
@@ -42,6 +43,7 @@ func main() {
 	f.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
 	f.IntVar(&percentNewUsers, "percentnew", 0, "0-100 percentage of new fan users in test")
 	f.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
+	f.BoolVar(&sleepBetweenSteps, "sleepbetweensteps", false, "Sleep between steps as a fan")
 	switch commandName {
 	case "runtest":
 		f.StringVar(&sshHosts, "sshhosts", "", "space separated list of user@host to run test on (clustered)")
@@ -75,7 +77,7 @@ func main() {
 	case "runtest":
 		if sshHosts == "" {
 			runInfluencer(influencerEmail, influencerToken, testVideoPath, precreateFans, concurrentUsers, percentNewUsers, func(influencerID int) {
-				runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
+				runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, csvWriter())
 			})
 		} else {
 			remote, err := remote.NewRemote(sshHosts, sshPKPath)
@@ -105,7 +107,7 @@ func main() {
 		}
 		break
 	case "runfans":
-		runFans(concurrentUsers, rampUpTime, existingUserOffset, influencerID, csvWriter())
+		runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, csvWriter())
 		break
 	}
 }
@@ -155,21 +157,28 @@ func precreateFans(influencerID int, nUsers int) {
 	}
 }
 
-func fanSignUpAndFollow(fanUsername string, influencerID int) (*client.FanResponse, error) {
+func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps bool) (*client.FanResponse, error) {
 	fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
 	if err != nil {
 		log.Println("Fan", fanUsername, "signup failure", err)
 		return nil, err
 	}
 	log.Println("Fan", fanUsername, "signed up")
+	if sleepBetweenSteps {
+		time.Sleep(3 * time.Second)
+	}
+
 	if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
 		log.Println("Fan", fanUsername, "signup failure", err)
 	}
 	log.Println("Fan", fanUsername, "followed influencer")
+	if sleepBetweenSteps {
+		time.Sleep(1 * time.Second)
+	}
 	return fanRes, err
 }
 
-func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset int, influencerID int, out chan []string) {
+func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bool, existingUserOffset int, influencerID int, out chan []string) {
 	runN(concurrentUsers, rampUpTime, func(_ int) {
 		startTime := time.Now()
 
@@ -179,7 +188,7 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 		var fanRes *client.FanResponse
 		var err error
 		if newUser {
-			fanRes, err = fanSignUpAndFollow(fanUsername, influencerID)
+			fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps)
 			if err != nil {
 				return
 			}
@@ -187,7 +196,7 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, existingUserOffset i
 			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
 			if err != nil {
 				log.Println("Fan", fanUsername, "signin failure")
-				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID)
+				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps)
 				if err != nil {
 					return
 				}
