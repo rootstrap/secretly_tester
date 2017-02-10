@@ -157,6 +157,31 @@ func precreateFans(influencerID int, nUsers int) {
 	}
 }
 
+func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleepBetweenSteps bool) error {
+	generalMarketplaceResp, err := fanClient.GetGeneralMarketplace(fanRes.Token)
+	if err != nil {
+		log.Println("Fan", fanUsername, "general influencers marketplace error", err)
+		return err
+	}
+	if sleepBetweenSteps {
+		time.Sleep(1 * time.Second)
+	}
+	influencersLen := len(generalMarketplaceResp.Influencers)
+	ids := make([]int, influencersLen, influencersLen)
+	for index,element := range generalMarketplaceResp.Influencers {
+		ids[index] = element.ID
+	}
+	err = fanClient.RelationMarketplace(fanRes.Token, ids)
+	if err != nil {
+		log.Println("Fan", fanUsername, "relation marketplace error", err)
+		return err
+	}
+	if sleepBetweenSteps {
+		time.Sleep(5 * time.Second)
+	}
+	return nil
+}
+
 func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps bool) (*client.FanResponse, error) {
 	fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
 	if err != nil {
@@ -175,7 +200,7 @@ func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps 
 	if sleepBetweenSteps {
 		time.Sleep(5 * time.Second)
 	}
-
+	fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps)
 	if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
 		log.Println("Fan", fanUsername, "signup failure", err)
 	}
@@ -211,6 +236,7 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bo
 			} else {
 				log.Println("Fan", fanUsername, "signed in")
 			}
+			fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps)
 		}
 
 		joined, err := fanClient.JoinStream(influencerID, fanRes.ID)

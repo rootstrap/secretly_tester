@@ -86,6 +86,43 @@ func (client *FanClient) UnfollowInfluencer(token string, influencerID int) erro
 	return nil
 }
 
+func (client *FanClient) UseCode(token string) error {
+	req := map[string]int{}
+	headers := map[string]string{"x-fan-token": token}
+	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/codes/use?code_text=leti", req, headers)
+	defer resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type GeneralMaketPlaceResponse struct {
+	Influencers []struct {
+		ID          int    `json:"id"`
+	} `json:"influencers"`
+}
+
+func (client *FanClient) GetGeneralMarketplace(token string) (*GeneralMaketPlaceResponse, error) {
+	url := client.BaseURL + "/api/v1/influencers/general?page=1"
+	body := map[string]int{}
+	headers := map[string]string{"x-fan-token": token}
+	var resBody GeneralMaketPlaceResponse
+	_, err := doJSONBodyRequestWithJSONResponse(client.HTTPClient, "GET", url, body, &resBody, headers)
+	return &resBody, err
+}
+
+func (client *FanClient) RelationMarketplace(token string, ids []int) error {
+	req := map[string][]int{"influencers": ids}
+	headers := map[string]string{"x-fan-token": token}
+	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/influencers/relation", req, headers)
+	defer resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 type JoinStreamResponse struct {
 	OriginIP           string `json:"originIp"`
 	InfluencerUsername string `json:"influencerUsername"`
@@ -112,17 +149,6 @@ func (client *FanClient) LeaveStream(influencerID int, fanID int) error {
 	}
 	if resp.StatusCode != 200 {
 		return newError(req, resp, nil)
-	}
-	return nil
-}
-
-func (client *FanClient) UseCode(token string) error {
-	req := map[string]int{}
-	headers := map[string]string{"x-fan-token": token}
-	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/codes/use?code_text=leti", req, headers)
-	defer resp.Body.Close()
-	if err != nil {
-		return err
 	}
 	return nil
 }

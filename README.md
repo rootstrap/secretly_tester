@@ -87,6 +87,8 @@ Usage of talkative_stream_test runtest:
         pre-create fans and follow influencer (not needed on repeat runs)
   -ramp duration
         time between users joining, e.g. 200ms (default 500ms)
+  -sleepbetweensteps
+  	Sleep between steps as a fan
   -sshhosts string
         space separated list of user@host to run test on (clustered)
   -sshkeyfile string
