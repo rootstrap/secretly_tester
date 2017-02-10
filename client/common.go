@@ -9,8 +9,8 @@ import (
 	"net/http/httputil"
 )
 
-const urlBase string = "http://talkative-staging.herokuapp.com" // TODO: put in a config file
-const streamsUrlBase string = "http://secretly-sender.herokuapp.com"
+const urlBase string = "https://talkative-staging.herokuapp.com"
+const streamsUrlBase string = "https://secretly-sender.herokuapp.com"
 const streamsToken string = "SENDERHQ2016"
 
 func newError(req *http.Request, resp *http.Response, body []byte) error {
