@@ -95,6 +95,8 @@ Usage of talkative_stream_test runtest:
         path to SSH private key file
   -token string
         influencer token (default "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57")
+  -timeout duration
+    	Response time before timeout, e.g. 500ms
   -users int
         number of concurrent users (default 10)
   -videopath string

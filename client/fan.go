@@ -3,6 +3,7 @@ package client
 import (
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type FanClient struct {
@@ -12,8 +13,11 @@ type FanClient struct {
 	StreamsToken   string
 }
 
-func NewFanClient() *FanClient {
+func NewFanClient(duration time.Duration) *FanClient {
 	return &FanClient{
+		HTTPClient: 		http.Client {
+		Timeout: duration,
+		},
 		BaseURL:        urlBase,
 		StreamsBaseUrl: streamsUrlBase,
 		StreamsToken:   streamsToken,

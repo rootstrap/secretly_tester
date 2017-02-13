@@ -22,6 +22,7 @@ func main() {
 	bumpNoFiles(8192)
 	var concurrentUsers int
 	var rampUpTime time.Duration
+	var apiTimeout time.Duration
 	var existingUserOffset int
 	var percentNewUsers int
 	var sshHosts string
@@ -43,6 +44,7 @@ func main() {
 	f.IntVar(&existingUserOffset, "existingoffset", 0, "sequence number offset for existing users")
 	f.IntVar(&percentNewUsers, "percentnew", 0, "0-100 percentage of new fan users in test")
 	f.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
+	f.DurationVar(&apiTimeout, "timeout", 0*time.Millisecond, "Response time before timeout, e.g. 500ms")
 	f.BoolVar(&sleepBetweenSteps, "sleepbetweensteps", false, "Sleep between steps as a fan")
 	switch commandName {
 	case "runtest":
@@ -67,6 +69,7 @@ func main() {
 	if err != nil {
 		os.Exit(2)
 	}
+	fanClient = client.NewFanClient(apiTimeout)
 
 	userGenerator, err = usergenerator.NewUserGenerator(int32(existingUserOffset), int32(percentNewUsers))
 	if err != nil {
@@ -141,7 +144,7 @@ func precreateFans(influencerID int, nUsers int) {
 	for _, fanUsername := range userGenerator.GetExisting(nUsers) {
 		fanRes, err := fanClient.SignIn(fanUsername+"@e.com", password)
 		if err != nil {
-			log.Println("Fan", fanUsername, "signin failure")
+			log.Println("Fan", fanUsername, "signin failure", err)
 			fanRes, err = fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
 			if err != nil {
 				log.Println("Fan", fanUsername, "signup failure", err)
@@ -165,7 +168,7 @@ func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleep
 	}
 	influencersLen := len(generalMarketplaceResp.Influencers)
 	ids := make([]int, influencersLen, influencersLen)
-	for index,element := range generalMarketplaceResp.Influencers {
+	for index, element := range generalMarketplaceResp.Influencers {
 		ids[index] = element.ID
 	}
 	err = fanClient.RelationMarketplace(fanRes.Token, ids)
@@ -225,7 +228,7 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bo
 		} else {
 			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
 			if err != nil {
-				log.Println("Fan", fanUsername, "signin failure")
+				log.Println("Fan", fanUsername, "signin failure", err)
 				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps)
 				if err != nil {
 					return
@@ -364,7 +367,7 @@ func bumpNoFiles(noFiles uint64) error {
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
 }
 
-var fanClient = client.NewFanClient()
+var fanClient *client.FanClient
 
 var influencerClient = client.NewInfluencerClient()
 
