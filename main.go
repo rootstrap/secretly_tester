@@ -163,9 +163,6 @@ func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleep
 		log.Println("Fan", fanUsername, "general influencers marketplace error", err)
 		return err
 	}
-	if sleepBetweenSteps {
-		time.Sleep(1 * time.Second)
-	}
 	influencersLen := len(generalMarketplaceResp.Influencers)
 	ids := make([]int, influencersLen, influencersLen)
 	for index,element := range generalMarketplaceResp.Influencers {
