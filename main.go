@@ -3,14 +3,14 @@ package main
 import (
 	"encoding/csv"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"fmt"
 
 	"github.com/toptier/secretly_tester/client"
 	"github.com/toptier/secretly_tester/remote"
@@ -76,11 +76,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	machineID, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	switch commandName {
 	case "runtest":
 		if sshHosts == "" {
 			runInfluencer(influencerEmail, influencerToken, testVideoPath, precreateFans, concurrentUsers, percentNewUsers, func(influencerID int) {
-				runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, csvWriter())
+				runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, machineID, csvWriter())
 			})
 		} else {
 			remote, err := remote.NewRemote(sshHosts, sshPKPath)
@@ -110,7 +115,7 @@ func main() {
 		}
 		break
 	case "runfans":
-		runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, csvWriter())
+		runFans(concurrentUsers, rampUpTime, sleepBetweenSteps, existingUserOffset, influencerID, machineID, csvWriter())
 		break
 	}
 }
@@ -160,10 +165,11 @@ func precreateFans(influencerID int, nUsers int) {
 	}
 }
 
-func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleepBetweenSteps bool) error {
+func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleepBetweenSteps bool, startTime time.Time, out chan []string) error {
 	generalMarketplaceResp, err := fanClient.GetGeneralMarketplace(fanRes.Token)
+	printApiRequestCSV(fanUsername, startTime, out)
 	if err != nil {
-		log.Println("Fan", fanUsername, "general influencers marketplace error", err)
+		logErrorAPI("Fan", fanUsername, "general influencers marketplace error", err, "warning", startTime, out)
 		return err
 	}
 	log.Println("Fan", fanUsername, "requested general marketplace")
@@ -173,8 +179,9 @@ func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleep
 		ids[index] = element.ID
 	}
 	err = fanClient.RelationMarketplace(fanRes.Token, ids)
+	printApiRequestCSV(fanUsername, startTime, out)
 	if err != nil {
-		log.Println("Fan", fanUsername, "relation marketplace error", err)
+		logErrorAPI("Fan", fanUsername, "relation marketplace error", err, "warning", startTime, out)
 		return err
 	}
 	log.Println("Fan", fanUsername, "requested relation marketplace")
@@ -184,10 +191,11 @@ func fanRequestMarketplace(fanUsername string, fanRes *client.FanResponse, sleep
 	return nil
 }
 
-func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps bool) (*client.FanResponse, error) {
+func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps bool, startTime time.Time, out chan []string) (*client.FanResponse, error) {
 	fanRes, err := fanClient.SignUp(fanUsername+"@e.com", fanUsername, password)
+	printApiRequestCSV(fanUsername, startTime, out)
 	if err != nil {
-		log.Println("Fan", fanUsername, "signup failure", err)
+		logErrorAPI("Fan", fanUsername, "signup failure", err, "critical", startTime, out)
 		return nil, err
 	}
 	log.Println("Fan", fanUsername, "signed up")
@@ -195,16 +203,21 @@ func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps 
 		time.Sleep(3 * time.Second)
 	}
 
-	if err = fanClient.UseCode(fanRes.Token); err != nil {
-		log.Println("Fan", fanUsername, "Use code failure", err)
+	err = fanClient.UseCode(fanRes.Token)
+	printApiRequestCSV(fanUsername, startTime, out)
+	if err != nil {
+		logErrorAPI("Fan", fanUsername, "Use code failure", err, "warning", startTime, out)
 	}
 	log.Println("Fan", fanUsername, "Use code")
 	if sleepBetweenSteps {
 		time.Sleep(5 * time.Second)
 	}
-	fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps)
-	if err = fanClient.FollowInfluencer(fanRes.Token, influencerID); err != nil {
-		log.Println("Fan", fanUsername, "signup failure", err)
+	fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps, startTime, out)
+
+	err = fanClient.FollowInfluencer(fanRes.Token, influencerID)
+	printApiRequestCSV(fanUsername, startTime, out)
+	if err != nil {
+		logErrorAPI("Fan", fanUsername, "follow influencer failure", err, "critical", startTime, out)
 	}
 	log.Println("Fan", fanUsername, "followed influencer")
 	if sleepBetweenSteps {
@@ -213,49 +226,55 @@ func fanSignUpAndFollow(fanUsername string, influencerID int, sleepBetweenSteps 
 	return fanRes, err
 }
 
-func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bool, existingUserOffset int, influencerID int, out chan []string) {
+func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bool, existingUserOffset int, influencerID int, machineID string, out chan []string) {
 	runN(concurrentUsers, rampUpTime, func(_ int) {
 		startTime := time.Now()
 
 		fanUsername, newUser := userGenerator.Gen()
 		log.Println("Starting client", fanUsername)
+		printStartTestCSV(fanUsername, machineID, out)
 
 		var fanRes *client.FanResponse
 		var err error
 		if newUser {
-			fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps)
+			fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps, startTime, out)
 			if err != nil {
 				return
 			}
 		} else {
 			fanRes, err = fanClient.SignIn(fanUsername+"@e.com", password)
+			printApiRequestCSV(fanUsername, startTime, out)
 			if err != nil {
-				log.Println("Fan", fanUsername, "signin failure", err)
-				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps)
+				logErrorAPI("Fan", fanUsername, "signin failure", err, "warning", startTime, out)
+				fanRes, err = fanSignUpAndFollow(fanUsername, influencerID, sleepBetweenSteps, startTime, out)
 				if err != nil {
 					return
 				}
 			} else {
 				log.Println("Fan", fanUsername, "signed in")
 			}
-			fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps)
+			fanRequestMarketplace(fanUsername, fanRes, sleepBetweenSteps, startTime, out)
 		}
 
 		joined, err := fanClient.JoinStream(influencerID, fanRes.ID)
+		printApiRequestCSV(fanUsername, startTime, out)
 		if err != nil {
-			log.Println("Fan", fanUsername, "join failure", err)
+			logErrorAPI("Fan", fanUsername, "join failure", err, "critical", startTime, out)
 			return
 		}
 		log.Println("Fan", fanUsername, "joined stream")
-		if err = fanClient.LeaveStream(influencerID, fanRes.ID); err != nil {
-			log.Println("Fan", fanUsername, "leave failure", err)
+
+		err = fanClient.LeaveStream(influencerID, fanRes.ID)
+		printApiRequestCSV(fanUsername, startTime, out)
+		if err != nil {
+			logErrorAPI("Fan", fanUsername, "leave failure", err, "critical", startTime, out)
 			return
 		}
 		log.Println("Fan", fanUsername, "left stream")
 
 		rtmpUrl, err := client.GetEdgeUrl(joined.OriginIP, joined.InfluencerUsername)
 		if err != nil {
-			log.Println(err)
+			logErrorAPI("Fan", fanUsername, "leave failure", err, "critical", startTime, out)
 			return
 		}
 
@@ -367,6 +386,39 @@ func bumpNoFiles(noFiles uint64) error {
 		rlim.Cur = noFiles
 	}
 	return syscall.Setrlimit(syscall.RLIMIT_NOFILE, &rlim)
+}
+
+func logErrorAPI(userType, fanUsername, message string, err error, level string, startTime time.Time, out chan []string) {
+	log.Println(userType, fanUsername, message, err)
+	if strings.Contains(err.Error(), "Timeout") {
+		out <- []string{
+			fanUsername,
+			strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+			"ApiRequestTimeout",
+			level}
+	} else {
+		out <- []string{
+			fanUsername,
+			strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+			"ApiError",
+			level}
+	}
+}
+
+func printApiRequestCSV(fanUsername string, startTime time.Time, out chan []string) {
+	out <- []string{
+		fanUsername,
+		strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+		"ApiRequest",
+		"1"}
+}
+
+func printStartTestCSV(fanUsername string, machineID string, out chan []string) {
+	out <- []string{
+		fanUsername,
+		"0",
+		"StartTestOnMachine",
+		machineID}
 }
 
 var fanClient *client.FanClient
