@@ -80,6 +80,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if machineID == "" {
+		machineID = "instance-" + usergenerator.RandomString(5)
+	}
 
 	switch commandName {
 	case "runtest":

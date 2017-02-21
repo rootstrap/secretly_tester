@@ -34,7 +34,7 @@ func NewUserGenerator(offset int32, percentNew int32) (ug *UserGenerator, err er
 
 func (ug *UserGenerator) Gen() (string, bool) {
 	if ug.shouldMakeRandomUser() {
-		return "testfan" + randomString(20), true
+		return "testfan" + RandomString(20), true
 	}
 	return "testfan" + strconv.Itoa(int(atomic.AddInt32(&ug.offset, 1))-1), false
 }
@@ -51,7 +51,7 @@ func (ug *UserGenerator) shouldMakeRandomUser() bool {
 	return ug.rand.Int31n(100) < ug.percentNew
 }
 
-func randomString(strlen int) string {
+func RandomString(strlen int) string {
 	rand.Seed(time.Now().UTC().UnixNano())
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	result := make([]byte, strlen)
