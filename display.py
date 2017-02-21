@@ -26,8 +26,9 @@ class Reporter(object):
 
     def update(self, sessions, requests, timeouts):
         self.current_display_index = None
+        self.scr.clear()
         self.scr.addstr(self.get_display_index(), 0, ("#" * 40) + " API")
-        self.scr.addstr(self.get_display_index(), 0, "Average number of requests: {0:.2f}/s".format(sum(s.avg_nb_requests for s in sessions.itervalues())))
+        self.scr.addstr(self.get_display_index(), 0, "Overall average number of requests: {0:8.2f}/s".format(sum(s.avg_nb_requests for s in sessions.itervalues())))
         self.scr.addstr(self.get_display_index(), 0, "Total number of requests: {0}".format(requests))
         self.scr.addstr(self.get_display_index(), 0, "Total number of timeouts: {0}".format(timeouts))
         instances_request_avg = defaultdict(list)
@@ -35,7 +36,7 @@ class Reporter(object):
             instances_request_avg[session.instance_id].append(session.avg_nb_requests)
         self.scr.addstr(self.get_display_index(), 0, ("#" * 40) + " API breakdown")
         for instance_id, values in instances_request_avg.iteritems():
-            self.scr.addstr(self.get_display_index(), 0, "Average number of requests for instance {0}: {1:.2f}/s".format(instance_id, sum(values)))
+            self.scr.addstr(self.get_display_index(), 0, "Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, sum(values)))
 
         self.scr.addstr(self.get_display_index(1), 0, ("#" * 40) + " Streaming")
         self.scr.addstr(self.get_display_index(), 0, "%d sessions established" % len(sessions))
