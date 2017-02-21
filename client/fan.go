@@ -94,10 +94,10 @@ func (client *FanClient) UseCode(token string) error {
 	req := map[string]int{}
 	headers := map[string]string{"x-fan-token": token}
 	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/codes/use?code_text=leti", req, headers)
-	defer resp.Body.Close()
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	return nil
 }
 
