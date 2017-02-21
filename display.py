@@ -109,6 +109,8 @@ if __name__ == "__main__":
             if metric == 'StartTestOnMachine':
                 sessions[session_id].instance_id = value
             if metric == 'ApiRequest':
+                if sessions[session_id].instance_id == "":
+                    sessions[session_id].instance_id = value
                 requests += 1
                 sessions[session_id].add_request(stamp)
             if metric == 'ApiRequestTimeout' or metric == 'ApiError':
