@@ -14,13 +14,13 @@ Talkative streaming test
 
 ### Setup dev environment ###
 
-* Clone this repository into the src folder of your GO workspace (https://golang.org/doc/code.html#Overview)
 * `$ export GOPATH=/path/to/your/go/workspace`
+* Clone this repository into the src folder of your GO workspace `git clone ... $GOPATH/src/toptier/secretly_tester` (https://golang.org/doc/code.html#Overview)
 * Build the project:
     ```
-    $ cd $GOPATH
-    $ go get github.com/toptier/secretly_tester
-    $ go install github.com/toptier/secretly_tester
+    $ cd $GOPATH/src/toptier/secretly_tester
+    $ go get
+    $ go install
     ```
 
 ### Build infrastructure ###
