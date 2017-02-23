@@ -24,6 +24,7 @@ func GetEdgeUrl(host string, streamName string) (url string, err error) {
 	if err != nil {
 		return
 	}
+	resp.Body.Close()
 	var parsed getEdgeUrlResponse
 	err = xml.Unmarshal(body, &parsed)
 	if err != nil {

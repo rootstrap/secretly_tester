@@ -33,6 +33,12 @@ func newError(req *http.Request, resp *http.Response, body []byte) error {
 	return errors.New(s)
 }
 
+func tryCloseRespBody(resp *http.Response) {
+	if resp != nil {
+		resp.Body.Close()
+	}
+}
+
 func doReqRep(client http.Client, meth, url string, headers map[string]string) error {
 	req, err := http.NewRequest(meth, url, nil)
 	if err != nil {
@@ -43,7 +49,7 @@ func doReqRep(client http.Client, meth, url string, headers map[string]string) e
 		req.Header.Set(key, value)
 	}
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return err
 	}
@@ -82,7 +88,7 @@ func doJSONBodyRequestWithJSONResponse(client http.Client, meth, url string, req
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 
 	respBodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

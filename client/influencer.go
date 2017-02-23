@@ -72,7 +72,7 @@ func (client *InfluencerClient) Get(influencerID int, token string) (*Influencer
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("x-influencer-token", token)
 	resp, err := client.HTTPClient.Do(req)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return nil, err
 	}

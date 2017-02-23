@@ -15,8 +15,8 @@ type FanClient struct {
 
 func NewFanClient(duration time.Duration) *FanClient {
 	return &FanClient{
-		HTTPClient: 		http.Client {
-		Timeout: duration,
+		HTTPClient: http.Client{
+			Timeout: duration,
 		},
 		BaseURL:        urlBase,
 		StreamsBaseUrl: streamsUrlBase,
@@ -67,7 +67,7 @@ func (client *FanClient) FollowInfluencer(token string, influencerID int) error 
 	req := map[string]int{"influencer_id": influencerID}
 	headers := map[string]string{"x-fan-token": token}
 	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/fan_influencers", req, headers)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (client *FanClient) UnfollowInfluencer(token string, influencerID int) erro
 	req.Header.Set("x-fan-token", token)
 	req.Header.Set("Accept", "*/*")
 	resp, err := client.HTTPClient.Do(req)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return err
 	}
@@ -97,13 +97,13 @@ func (client *FanClient) UseCode(token string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	return nil
 }
 
 type GeneralMaketPlaceResponse struct {
 	Influencers []struct {
-		ID          int    `json:"id"`
+		ID int `json:"id"`
 	} `json:"influencers"`
 }
 
@@ -120,7 +120,7 @@ func (client *FanClient) RelationMarketplace(token string, ids []int) error {
 	req := map[string][]int{"influencers": ids}
 	headers := map[string]string{"x-fan-token": token}
 	resp, err := doJSONBodyRequest(client.HTTPClient, "POST", client.BaseURL+"/api/v1/influencers/relation", req, headers)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (client *FanClient) LeaveStream(influencerID int, fanID int) error {
 	req.Header.Set("Key", client.StreamsToken)
 	req.Header.Set("Accept", "*/*")
 	resp, err := client.HTTPClient.Do(req)
-	defer resp.Body.Close()
+	defer tryCloseRespBody(resp)
 	if err != nil {
 		return err
 	}
