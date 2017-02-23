@@ -143,7 +143,7 @@ func runInfluencer(email, token, testVideoPath string, shouldPrecreatFans bool, 
 	}()
 	err := pusher.Run()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error pushing to ", originURL, " ", err)
 	}
 }
 
