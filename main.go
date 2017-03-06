@@ -16,6 +16,7 @@ import (
 	"github.com/toptier/secretly_tester/remote"
 	"github.com/toptier/secretly_tester/rtmp"
 	"github.com/toptier/secretly_tester/usergenerator"
+	"github.com/toptier/secretly_tester/instanceinfos"
 )
 
 func main() {
@@ -230,6 +231,31 @@ func fanSignUpAndFollow(fanUsername, machineID string, influencerID int, sleepBe
 }
 
 func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bool, existingUserOffset int, influencerID int, machineID string, out chan []string) {
+	startTimeInstanceInfos := time.Now()
+	go func() {
+		for {
+			bytesSent, bytesRecv := instanceinfos.GetNetIOBytes()
+			out <- []string{
+				machineID,
+				strconv.FormatFloat(secsSince(startTimeInstanceInfos), 'f', 2, 32),
+				"KiloBytesSent",
+				strconv.FormatUint(bytesSent / 1024, 10)}
+			out <- []string{
+				machineID,
+				strconv.FormatFloat(secsSince(startTimeInstanceInfos), 'f', 2, 32),
+				"KiloBytesRecv",
+				strconv.FormatUint(bytesRecv / 1024, 10)}
+
+			cpuUsage := instanceinfos.GetCPUUsage()
+			out <- []string{
+				machineID,
+				strconv.FormatFloat(secsSince(startTimeInstanceInfos), 'f', 2, 32),
+				"CPUUsage",
+				strconv.FormatFloat(float64(cpuUsage), 'f', 2, 32)}
+
+			time.Sleep(2 * time.Second)
+		}
+	}()
 	runN(concurrentUsers, rampUpTime, func(_ int) {
 		startTime := time.Now()
 
