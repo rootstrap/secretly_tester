@@ -1,5 +1,6 @@
 package rtmp
 
+import "path"
 import "os/exec"
 import "io/ioutil"
 import "os"
@@ -26,9 +27,13 @@ func (t *rtmpPush) Run() error {
 	if err != nil {
 		return err
 	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
 	defer os.Remove(file.Name())
 	for i := 0; i < nLoops; i++ {
-		_, err := file.WriteString("file '" + t.path + "'\n")
+		_, err := file.WriteString("file '" + path.Join(dir, t.path) + "'\n")
 		if err != nil {
 			file.Close()
 			return err
@@ -37,7 +42,7 @@ func (t *rtmpPush) Run() error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	t.cmd = exec.Command(ffmpegPath, "-re", "-i", t.path, "-acodec", "copy", "-vcodec", "copy", "-f", "flv", t.url)
+	t.cmd = exec.Command(ffmpegPath, "-f", "concat", "-safe", "0", "-re", "-i", file.Name(), "-acodec", "copy", "-vcodec", "copy", "-f", "flv", t.url)
 	t.cmd.Stdout = nil
 	t.cmd.Stderr = nil
 	return t.cmd.Run()
