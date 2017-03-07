@@ -363,6 +363,15 @@ func startInfluencer(infCreds *client.InfluencerResponse) (inf *client.Influence
 	if err := influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
 		log.Fatal(err)
 	}
+	go func() {
+		for {
+			time.Sleep(5 * time.Minute)
+			log.Println("Creating stream status")
+			if err := influencerClient.CreateStream(infCreds.ID, infCreds.Token); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}()
 	return
 }
 
