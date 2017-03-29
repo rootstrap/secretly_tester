@@ -1,9 +1,9 @@
 {
     "aws_access_key": "AKIAI5ANNJPT4WKTNQ3Q",
     "aws_secret_key": "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",
-    "aws_region": "us-west-1",
-    "instance_type": "m3.medium",
-    "number_instances": "3",
-    "security_group_id": "sg-d2e0ecb6",
-    "subnet_id": "subnet-f0b881a9"
+    "aws_region": "us-west-2",
+    "instance_type": "c4.xlarge",
+    "number_instances": "21",
+    "security_group_id": "sg-49764631",
+    "subnet_id": "subnet-743ca802"
 }

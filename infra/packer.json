@@ -14,7 +14,7 @@
             "secret_key": "{{user `aws_secret_key`}}",
             "ami_name": "talkativebandwidthtest {{user `git_ref`}}",
             "region": "{{user `aws_region`}}",
-            "source_ami": "ami-539ac933",
+            "source_ami": "ami-7ac6491a",
             "instance_type": "{{user `instance_type`}}",
             "ssh_username": "ubuntu"
         }
