@@ -20,7 +20,7 @@ ami_id=$(echo "$packer_output" | grep -Ei "(name conflicts with an existing ami.
 echo $ami_id
 
 pushd infra
-terraform apply -var-file config.json -var "ami_id=$ami_id"
+terraform apply -parallelism=5 -var-file config.json -var "ami_id=$ami_id"
 
 nodeips=$(terraform output | grep -Eo '([0-9]{1,3}[.]){3}[0-9]{1,3}')
 nodehosts=$(echo "$nodeips" | sed 's|^|ubuntu@|')
