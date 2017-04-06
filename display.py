@@ -52,7 +52,7 @@ class Reporter(object):
             self.left_window.addstr(self.get_display_index(), 0, "Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, sum(values)))
 
         self.left_window.addstr(self.get_display_index(1), 0, ("#" * 40) + " Streaming")
-        self.left_window.addstr(self.get_display_index(), 0, "%d sessions established" % len(sessions))
+        self.left_window.addstr(self.get_display_index(), 0, "%d/%d sessions established" % (sum(1 for s in sessions.itervalues() if s.streaming_start_epoch is not None), len(sessions)))
         streams_dropped = sum(1 for s in sessions.itervalues() if s.dropped)
         streams_lagged_ratio = streams_dropped / len(sessions) if len(sessions) else 0
         self.left_window.addstr(self.get_display_index(1), 0, "Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_lagged_ratio * 80), streams_dropped, len(sessions)))
