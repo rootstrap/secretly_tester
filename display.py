@@ -5,6 +5,12 @@ from csv import reader as parse_events
 from sys import stdin
 from collections import defaultdict
 
+def infinite():
+    i = 0
+    while True:
+        yield i
+        i += 1
+
 class Reporter(object):
     def __init__(self):
         scr = curses.initscr()
@@ -23,55 +29,51 @@ class Reporter(object):
         curses.nocbreak()
         curses.endwin()
 
-    def get_display_index(self, offset=0, left=True):
-        def _get_window_index():
-            if left:
-                return self.current_display_index['left']
-            else:
-                return self.current_display_index['right']
-        if self.current_display_index == None:
-            self.current_display_index = {'left': 0, 'right': 0}
-            return _get_window_index()
-        if left:
-            self.current_display_index['left'] += offset + 1
-        else:
-            self.current_display_index['right'] += offset + 1
-        return _get_window_index()
-
     def update_left_window(self, sessions, instances, requests, timeouts):
         self.left_window.clear()
-        self.left_window.addstr(self.get_display_index(), 0, ("#" * 40) + " API requests")
-        self.left_window.addstr(self.get_display_index(), 0, "Overall average number of requests: {0:8.2f}/s".format(sum(s.avg_nb_requests for s in sessions.itervalues())))
-        self.left_window.addstr(self.get_display_index(), 0, "Total number of requests: {0}".format(requests))
-        self.left_window.addstr(self.get_display_index(), 0, "Total number of timeouts: {0}".format(timeouts))
+        indexes = infinite()
+        draw = lambda s: self.left_window.addstr(next(indexes), 0, s)
+
+        draw(("#" * 40) + " API requests")
+        draw("Overall average number of requests: {0:8.2f}/s".format(sum(s.avg_nb_requests for s in sessions.itervalues())))
+        draw("Total number of requests: {0}".format(requests))
+        draw("Total number of timeouts: {0}".format(timeouts))
         instances_request_avg = defaultdict(list)
         for session in sessions.itervalues():
             instances_request_avg[session.instance_id].append(session.avg_nb_requests)
-        self.left_window.addstr(self.get_display_index(), 0, ("#" * 40) + " API requests breakdown top 20")
+        draw(("#" * 40) + " API requests breakdown top 20")
         for i, (instance_id, values) in enumerate(instances_request_avg.items()[:20]):
-            self.left_window.addstr(self.get_display_index(), 0, "Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, sum(values)))
+            draw("Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, sum(values)))
 
-        self.left_window.addstr(self.get_display_index(1), 0, ("#" * 40) + " Streaming")
-        self.left_window.addstr(self.get_display_index(), 0, "%d/%d sessions established" % (sum(1 for s in sessions.itervalues() if s.streaming_start_epoch is not None), len(sessions)))
+        next(indexes)
+        draw(("#" * 40) + " Streaming")
+        draw("%d/%d sessions established" % (sum(1 for s in sessions.itervalues() if s.streaming_start_epoch is not None), len(sessions)))
         streams_dropped = sum(1 for s in sessions.itervalues() if s.dropped)
         streams_lagged_ratio = streams_dropped / len(sessions) if len(sessions) else 0
-        self.left_window.addstr(self.get_display_index(1), 0, "Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_lagged_ratio * 80), streams_dropped, len(sessions)))
+
+        next(indexes)
+        draw("Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_lagged_ratio * 80), streams_dropped, len(sessions)))
         if sessions:
             avgrate = sum(s.bytes_sec_average for s in sessions.itervalues()) / len(sessions)
-            self.left_window.addstr(self.get_display_index(), 0, "Average rate {0:8.2f} kbps".format(avgrate * 8))
-        self.left_window.addstr(self.get_display_index(), 0, ("#" * 40) + " Streaming top 20")
+            draw("Average rate {0:8.2f} kbps".format(avgrate * 8))
+        draw(("#" * 40) + " Streaming top 20")
         for i, (session_id, session) in enumerate(sessions.items()[:20]):
-            self.left_window.addstr(self.get_display_index(), 0, "Session {0}: overall rate {1:8.2f} kbps".format(session_id, session.bytes_sec_average * 8))
+            draw("Session {0}: overall rate {1:8.2f} kbps".format(session_id, session.bytes_sec_average * 8))
         self.left_window.refresh()
 
     def update_right_window(self, sessions, instances, requests, timeouts):
         self.right_window.clear()
-        self.right_window.addstr(self.get_display_index(0, False), 0, ("#" * 40) + " Instances bitrates infos top 20")
+        indexes = infinite()
+        draw = lambda s: self.right_window.addstr(next(indexes), 0, s)
+
+        draw(("#" * 40) + " Instances bitrates infos top 20")
         for i, (instance_id, instance) in enumerate(instances.items()[:20]):
-            self.right_window.addstr(self.get_display_index(0, False), 0, "Instance {0}: IN {1:12.2f} kbps | OUT {2:12.2f} kbps".format(instance_id, instance.bitrate_recv, instance.bitrate_sent))
-        self.right_window.addstr(self.get_display_index(1, False), 0, ("#" * 40) + " Instances CPU infos top 20")
+            draw("Instance {0}: IN {1:12.2f} kbps | OUT {2:12.2f} kbps".format(instance_id, instance.bitrate_recv, instance.bitrate_sent))
+
+        next(indexes)
+        draw(("#" * 40) + " Instances CPU infos top 20")
         for i, (instance_id, instance) in enumerate(instances.items()[:20]):
-            self.right_window.addstr(self.get_display_index(0, False), 0, "Instance {0}: {1:3.2f}%".format(instance_id, instance.cpu_usage))
+            draw("Instance {0}: {1:3.2f}%".format(instance_id, instance.cpu_usage))
         self.right_window.refresh()
 
     def update_divider(self):
