@@ -2,9 +2,118 @@
 import curses
 from time import time, sleep
 from csv import reader as parse_events
-from sys import stdin
+from sys import stdin, stderr, exit
 from collections import defaultdict
 from itertools import islice
+from subprocess import Popen, PIPE
+from argparse import ArgumentParser
+from select import select
+from tempfile import TemporaryFile
+from signal import SIGINT
+
+
+def main():
+    parser = ArgumentParser(description='Load test', add_help=False)
+    parser.add_argument('--help', dest='help', action='store_true', default=False)
+    parser.add_argument('--stdin', dest='stdin', action='store_true', default=False,
+                                   help="don't invoke test, read test run on STDIN for debugging")
+    parser.add_argument('--saveout', dest='saveout', action='store_true', default=False,
+                                     help="save output in lastrun.stdout, lastrun.stderr")
+    args, unknown = parser.parse_known_args()
+
+    if args.help:
+        parser.print_help(stderr)
+        print >> stderr
+        TestInvokingDataSource.invoke(['-h']).wait()
+        exit(2)
+
+    if args.stdin:
+        data_source = STDINDataSource
+    else:
+        if args.saveout:
+            data_source = TestInvokingDataSource(unknown, 'lastrun.stdout', 'lastrun.stderr')
+        else:
+            data_source = TestInvokingDataSource(unknown)
+
+    metrics = Metrics()
+    events = parse_events(data_source.get_lines())
+    reporter = Reporter()
+    try:
+        fill_metrics(metrics, events, lambda: reporter.update(metrics))
+    except KeyboardInterrupt:
+        data_source.stop()
+    finally:
+        reporter.stop()
+
+
+class STDINDataSource(object):
+    @staticmethod
+    def get_lines():
+        return iter(stdin.readline, '')
+
+    @staticmethod
+    def stop():
+        pass
+
+
+class TestInvokingDataSource(object):
+    argv_prefixes = (
+        ('talkative_stream_test',),
+        ('go', 'run', 'main.go',),
+    )
+
+    def __init__(self, args, stdout_path=None, stderr_path=None):
+        self.args = args
+        self.stdout_path = stdout_path
+        self.stderr_path = stderr_path
+        self.popen = None
+
+    def get_lines(self):
+        stdout_file = None
+        if self.stdout_path:
+            stdout_file = open(self.stdout_path, 'w+b')
+
+        if self.stderr_path:
+            stderr_file = open(self.stderr_path, 'w+b')
+        else:
+            stderr_file = TemporaryFile()
+
+        self.popen = self.invoke(self.args, stdout=PIPE, stderr=stderr_file)
+
+        while True:
+            ready, _, _ = select((self.popen.stdout,), (), (), 0.2)
+            stderr_file.seek(0, 1) # refresh
+            data = stderr_file.read()
+            if data:
+                stderr.write(data)
+            if self.popen.stdout in ready:
+                break
+
+        for line in iter(self.popen.stdout.readline, ''):
+            yield line
+            if stdout_file:
+                stdout_file.write(line)
+
+    def stop(self):
+        if self.popen and self.popen.returncode is None:
+            self.popen.send_signal(SIGINT)
+
+    @classmethod
+    def invoke(cls, args, **kwargs):
+        argvs = [list(p) for p in cls.argv_prefixes]
+        for argv in argvs:
+            argv.extend(args)
+            try:
+                return Popen(argv, **kwargs)
+            except OSError as e:
+                if e.errno != 2:
+                    raise
+        else:
+            print >> stderr, "Failed to invoke any of:"
+            for argv in argvs:
+                print >> stderr, ' '.join(argv)
+            exit(1)
+
 
 def infinite():
     i = 0
@@ -12,8 +121,12 @@ def infinite():
         yield i
         i += 1
 
+
 class Reporter(object):
     def __init__(self):
+        self.inited = False
+
+    def init(self):
         scr = curses.initscr()
         self.height, self.width = scr.getmaxyx()
         curses.endwin()
@@ -25,9 +138,10 @@ class Reporter(object):
         curses.cbreak()
 
     def stop(self):
-        curses.echo()
-        curses.nocbreak()
-        curses.endwin()
+        if self.inited:
+            curses.echo()
+            curses.nocbreak()
+            curses.endwin()
 
     def update_left_window(self, metrics):
         self.left_window.clear()
@@ -77,6 +191,9 @@ class Reporter(object):
         self.divider_window.refresh()
 
     def update(self, metrics):
+        if not self.inited:
+            self.init()
+            self.inited = True
         now = time()
         if now - self.last_time_updated < 0.5:
             return
@@ -84,6 +201,7 @@ class Reporter(object):
         self.update_divider()
         self.update_right_window(metrics)
         self.last_time_updated = now
+
 
 class Metrics(object):
     def __init__(self):
@@ -135,6 +253,7 @@ class Metrics(object):
         for instance_id, instance in self.instances.iteritems():
             yield instance_id, instance.cpu_usage
 
+
 class Session(object):
     def __init__(self, test_start_epoch):
         self.test_start_epoch = test_start_epoch
@@ -178,6 +297,7 @@ class Session(object):
         if time != self.test_start_epoch:
             self.avg_nb_requests = self.nb_requests / (time - self.test_start_epoch)
 
+
 class Instance(object):
     def __init__(self):
         self.cpu_usage = 0.0
@@ -206,6 +326,7 @@ class Instance(object):
                 self.last_kb_sent = (time, kb)
         else:
             self.last_kb_sent = (time, kb)
+
 
 def fill_metrics(metrics, events, on_update):
     instance_metrics = ["KiloBytesSent", "KiloBytesRecv", "CPUUsage"]
@@ -243,11 +364,6 @@ def fill_metrics(metrics, events, on_update):
                 metrics.instances[session_id].cpu_usage = float(value)
         on_update()
 
+
 if __name__ == "__main__":
-    metrics = Metrics()
-    events = parse_events(iter(stdin.readline, ''))
-    reporter = Reporter()
-    try:
-        fill_metrics(metrics, events, lambda: reporter.update(metrics))
-    finally:
-        reporter.stop()
+    main()

@@ -30,9 +30,8 @@ build() {
     GOPATH=/tmp/goroot go build -o talkative_stream_test
     mv 640.flv /home/ubuntu/
     mv talkative_stream_test /usr/local/bin/talkative_stream_test
-    mv display.py /usr/local/bin/talkative_display.py
-    mv infra/files/runtest /usr/local/bin/talkative_runtest
-    chmod +x /usr/local/bin/talkative_display.py /usr/local/bin/talkative_runtest
+    mv runtest.py /usr/local/bin/talkative_runtest
+    chmod +x /usr/local/bin/talkative_runtest
     popd
 }
 
