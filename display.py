@@ -4,6 +4,7 @@ from time import time, sleep
 from csv import reader as parse_events
 from sys import stdin
 from collections import defaultdict
+from itertools import islice
 
 def infinite():
     i = 0
@@ -29,51 +30,46 @@ class Reporter(object):
         curses.nocbreak()
         curses.endwin()
 
-    def update_left_window(self, sessions, instances, requests, timeouts):
+    def update_left_window(self, metrics):
         self.left_window.clear()
         indexes = infinite()
         draw = lambda s: self.left_window.addstr(next(indexes), 0, s)
 
         draw(("#" * 40) + " API requests")
-        draw("Overall average number of requests: {0:8.2f}/s".format(sum(s.avg_nb_requests for s in sessions.itervalues())))
-        draw("Total number of requests: {0}".format(requests))
-        draw("Total number of timeouts: {0}".format(timeouts))
-        instances_request_avg = defaultdict(list)
-        for session in sessions.itervalues():
-            instances_request_avg[session.instance_id].append(session.avg_nb_requests)
+        draw("Overall average number of requests: {0:8.2f}/s".format(metrics.average_request_rate))
+        draw("Total number of requests: {0}".format(metrics.requests))
+        draw("Total number of timeouts: {0}".format(metrics.timeouts))
         draw(("#" * 40) + " API requests breakdown top 20")
-        for i, (instance_id, values) in enumerate(instances_request_avg.items()[:20]):
-            draw("Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, sum(values)))
+        for instance_id, req_rate in islice(metrics.average_request_rate_by_instance, 0, 20):
+            draw("Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, req_rate))
 
         next(indexes)
         draw(("#" * 40) + " Streaming")
-        draw("%d/%d sessions established" % (sum(1 for s in sessions.itervalues() if s.streaming_start_epoch is not None), len(sessions)))
-        streams_dropped = sum(1 for s in sessions.itervalues() if s.dropped)
-        streams_lagged_ratio = streams_dropped / len(sessions) if len(sessions) else 0
+        draw("%d/%d sessions established" % (metrics.num_sessions_established, metrics.num_sessions))
+        streams_lagged_ratio = metrics.num_sessions_dropped / metrics.num_sessions if metrics.num_sessions else 0
 
         next(indexes)
-        draw("Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_lagged_ratio * 80), streams_dropped, len(sessions)))
-        if sessions:
-            avgrate = sum(s.bytes_sec_average for s in sessions.itervalues()) / len(sessions)
-            draw("Average rate {0:8.2f} kbps".format(avgrate * 8))
+        draw("Streams lagged: [{0:80}] {1}/{2}     ".format('#' * (streams_lagged_ratio * 80), metrics.num_sessions_dropped, metrics.num_sessions))
+        if metrics.num_sessions:
+            draw("Average rate {0:8.2f} kbps".format(metrics.average_byte_rate * 8))
         draw(("#" * 40) + " Streaming top 20")
-        for i, (session_id, session) in enumerate(sessions.items()[:20]):
-            draw("Session {0}: overall rate {1:8.2f} kbps".format(session_id, session.bytes_sec_average * 8))
+        for session_id, byte_rate in islice(metrics.average_byte_rate_by_session, 0, 20):
+            draw("Session {0}: overall rate {1:8.2f} kbps".format(session_id, byte_rate * 8))
         self.left_window.refresh()
 
-    def update_right_window(self, sessions, instances, requests, timeouts):
+    def update_right_window(self, metrics):
         self.right_window.clear()
         indexes = infinite()
         draw = lambda s: self.right_window.addstr(next(indexes), 0, s)
 
         draw(("#" * 40) + " Instances bitrates infos top 20")
-        for i, (instance_id, instance) in enumerate(instances.items()[:20]):
-            draw("Instance {0}: IN {1:12.2f} kbps | OUT {2:12.2f} kbps".format(instance_id, instance.bitrate_recv, instance.bitrate_sent))
+        for instance_id, bit_rate_recv, bit_rate_sent in islice(metrics.average_bit_rate_by_instance, 0, 20):
+            draw("Instance {0}: IN {1:12.2f} kbps | OUT {2:12.2f} kbps".format(instance_id, bit_rate_recv, bit_rate_sent))
 
         next(indexes)
         draw(("#" * 40) + " Instances CPU infos top 20")
-        for i, (instance_id, instance) in enumerate(instances.items()[:20]):
-            draw("Instance {0}: {1:3.2f}%".format(instance_id, instance.cpu_usage))
+        for instance_id, cpu_util in islice(metrics.average_cpu_by_instance, 0, 20):
+            draw("Instance {0}: {1:3.2f}%".format(instance_id, cpu_util))
         self.right_window.refresh()
 
     def update_divider(self):
@@ -81,14 +77,63 @@ class Reporter(object):
             self.divider_window.addstr(i, 0, "|")
         self.divider_window.refresh()
 
-    def update(self, sessions, instances, requests, timeouts):
+    def update(self, metrics):
         self.current_display_index = None
-        self.update_left_window(sessions, instances, requests, timeouts)
+        self.update_left_window(metrics)
         if time() - last < 2.0:
             self.update_divider()
-            self.update_right_window(sessions, instances, requests, timeouts)
+            self.update_right_window(metrics)
         self.last_time_updated_right_screen = time()
 
+class Metrics(object):
+    def __init__(self):
+        self.sessions = {}
+        self.instances = {}
+        self.requests = 0
+        self.timeouts = 0
+
+    @property
+    def average_request_rate(self):
+        return sum(s.avg_nb_requests for s in self.sessions.itervalues())
+
+    @property
+    def average_request_rate_by_instance(self):
+        instances_request_avg = defaultdict(int)
+        for session in self.sessions.itervalues():
+            instances_request_avg[session.instance_id] += session.avg_nb_requests
+        return instances_request_avg.iteritems()
+
+    @property
+    def num_sessions_established(self):
+        return sum(1 for s in self.sessions.itervalues() if s.streaming_start_epoch is not None)
+
+    @property
+    def num_sessions(self):
+        return len(self.sessions)
+
+    @property
+    def num_sessions_dropped(self):
+        return sum(1 for s in self.sessions.itervalues() if s.dropped)
+
+    @property
+    def average_byte_rate(self):
+        if len(self.sessions):
+            return sum(s.bytes_sec_average for s in self.sessions.itervalues()) / len(self.sessions)
+
+    @property
+    def average_byte_rate_by_session(self):
+        for session_id, session in self.sessions.iteritems():
+            yield session_id, session.bytes_sec_average
+
+    @property
+    def average_bit_rate_by_instance(self):
+        for instance_id, instance in self.instances.iteritems():
+            yield instance_id, instance.bitrate_recv, instance.bitrate_sent
+
+    @property
+    def average_cpu_by_instance(self):
+        for instance_id, instance in self.instances.iteritems():
+            yield instance_id, instance.cpu_usage
 
 class Session(object):
     def __init__(self, test_start_epoch):
@@ -165,10 +210,7 @@ class Instance(object):
 instance_metrics = ["KiloBytesSent", "KiloBytesRecv", "CPUUsage"]
 
 if __name__ == "__main__":
-    sessions = {}
-    instances = {}
-    requests = 0
-    timeouts = 0
+    metrics = Metrics()
 
     reporter = Reporter()
     try:
@@ -177,37 +219,37 @@ if __name__ == "__main__":
             session_id, stamp, metric, value = e
             stamp = float(stamp)
             if metric not in instance_metrics:
-                if session_id not in sessions:
-                    sessions[session_id] = Session(stamp)
+                if session_id not in metrics.sessions:
+                    metrics.sessions[session_id] = Session(stamp)
                 if metric == 'StartTestOnMachine':
-                    sessions[session_id].instance_id = value
+                    metrics.sessions[session_id].instance_id = value
                 if metric == 'ApiRequest':
-                    if sessions[session_id].instance_id == "":
-                        sessions[session_id].instance_id = value
-                    requests += 1
-                    sessions[session_id].add_request(stamp)
+                    if metrics.sessions[session_id].instance_id == "":
+                        metrics.sessions[session_id].instance_id = value
+                    metrics.requests += 1
+                    metrics.sessions[session_id].add_request(stamp)
                 if metric == 'ApiRequestTimeout' or metric == 'ApiError':
                     if metric == 'ApiRequestTimeout':
-                        timeouts += 1
+                        metrics.timeouts += 1
                     if value == "critical":
-                        del sessions[session_id]
+                        del metrics.sessions[session_id]
                 if metric == 'StreamProgressKiloBytes':
-                    sessions[session_id].update_kilobytes(stamp, float(value))
+                    metrics.sessions[session_id].update_kilobytes(stamp, float(value))
                 if metric == 'StreamProgressSeconds':
-                    sessions[session_id].update_buffered(stamp, float(value))
-                    sessions[session_id].update_requests_average(stamp)
+                    metrics.sessions[session_id].update_buffered(stamp, float(value))
+                    metrics.sessions[session_id].update_requests_average(stamp)
             else:
-                if session_id not in instances:
-                    instances[session_id] = Instance()
+                if session_id not in metrics.instances:
+                    metrics.instances[session_id] = Instance()
                 if metric == 'KiloBytesSent':
-                    instances[session_id].update_kilobytes_sent(stamp, float(value))
+                    metrics.instances[session_id].update_kilobytes_sent(stamp, float(value))
                 if metric == 'KiloBytesRecv':
-                    instances[session_id].update_kilobytes_received(stamp, float(value))
+                    metrics.instances[session_id].update_kilobytes_received(stamp, float(value))
                 if metric == 'CPUUsage':
-                    instances[session_id].cpu_usage = float(value)
+                    metrics.instances[session_id].cpu_usage = float(value)
             if time() - last < 0.5:
                 continue
             last = time()
-            reporter.update(sessions, instances, requests, timeouts)
+            reporter.update(metrics)
     finally:
         reporter.stop()
