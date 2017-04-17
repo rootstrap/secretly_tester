@@ -20,8 +20,7 @@ class Reporter(object):
         self.left_window = curses.newwin(self.height, self.width / 2, 0, 0)
         self.divider_window = curses.newwin(self.height, 1, 0, self.width / 2 - 1)
         self.right_window = curses.newwin(self.height, self.width / 2, 0, self.width / 2)
-        self.current_display_index = None
-        self.last_time_updated_right_screen = time()
+        self.last_time_updated = time()
         curses.noecho()
         curses.cbreak()
 
@@ -78,12 +77,13 @@ class Reporter(object):
         self.divider_window.refresh()
 
     def update(self, metrics):
-        self.current_display_index = None
+        now = time()
+        if now - self.last_time_updated < 0.5:
+            return
         self.update_left_window(metrics)
-        if time() - last < 2.0:
-            self.update_divider()
-            self.update_right_window(metrics)
-        self.last_time_updated_right_screen = time()
+        self.update_divider()
+        self.update_right_window(metrics)
+        self.last_time_updated = now
 
 class Metrics(object):
     def __init__(self):
@@ -207,49 +207,47 @@ class Instance(object):
         else:
             self.last_kb_sent = (time, kb)
 
-instance_metrics = ["KiloBytesSent", "KiloBytesRecv", "CPUUsage"]
+def fill_metrics(metrics, events, on_update):
+    instance_metrics = ["KiloBytesSent", "KiloBytesRecv", "CPUUsage"]
+    for e in events:
+        session_id, stamp, metric, value = e
+        stamp = float(stamp)
+        if metric not in instance_metrics:
+            if session_id not in metrics.sessions:
+                metrics.sessions[session_id] = Session(stamp)
+            if metric == 'StartTestOnMachine':
+                metrics.sessions[session_id].instance_id = value
+            if metric == 'ApiRequest':
+                if metrics.sessions[session_id].instance_id == "":
+                    metrics.sessions[session_id].instance_id = value
+                metrics.requests += 1
+                metrics.sessions[session_id].add_request(stamp)
+            if metric == 'ApiRequestTimeout' or metric == 'ApiError':
+                if metric == 'ApiRequestTimeout':
+                    metrics.timeouts += 1
+                if value == "critical":
+                    del metrics.sessions[session_id]
+            if metric == 'StreamProgressKiloBytes':
+                metrics.sessions[session_id].update_kilobytes(stamp, float(value))
+            if metric == 'StreamProgressSeconds':
+                metrics.sessions[session_id].update_buffered(stamp, float(value))
+                metrics.sessions[session_id].update_requests_average(stamp)
+        else:
+            if session_id not in metrics.instances:
+                metrics.instances[session_id] = Instance()
+            if metric == 'KiloBytesSent':
+                metrics.instances[session_id].update_kilobytes_sent(stamp, float(value))
+            if metric == 'KiloBytesRecv':
+                metrics.instances[session_id].update_kilobytes_received(stamp, float(value))
+            if metric == 'CPUUsage':
+                metrics.instances[session_id].cpu_usage = float(value)
+        on_update()
 
 if __name__ == "__main__":
     metrics = Metrics()
-
+    events = parse_events(iter(stdin.readline, ''))
     reporter = Reporter()
     try:
-        last = time()
-        for e in parse_events(iter(stdin.readline, '')):
-            session_id, stamp, metric, value = e
-            stamp = float(stamp)
-            if metric not in instance_metrics:
-                if session_id not in metrics.sessions:
-                    metrics.sessions[session_id] = Session(stamp)
-                if metric == 'StartTestOnMachine':
-                    metrics.sessions[session_id].instance_id = value
-                if metric == 'ApiRequest':
-                    if metrics.sessions[session_id].instance_id == "":
-                        metrics.sessions[session_id].instance_id = value
-                    metrics.requests += 1
-                    metrics.sessions[session_id].add_request(stamp)
-                if metric == 'ApiRequestTimeout' or metric == 'ApiError':
-                    if metric == 'ApiRequestTimeout':
-                        metrics.timeouts += 1
-                    if value == "critical":
-                        del metrics.sessions[session_id]
-                if metric == 'StreamProgressKiloBytes':
-                    metrics.sessions[session_id].update_kilobytes(stamp, float(value))
-                if metric == 'StreamProgressSeconds':
-                    metrics.sessions[session_id].update_buffered(stamp, float(value))
-                    metrics.sessions[session_id].update_requests_average(stamp)
-            else:
-                if session_id not in metrics.instances:
-                    metrics.instances[session_id] = Instance()
-                if metric == 'KiloBytesSent':
-                    metrics.instances[session_id].update_kilobytes_sent(stamp, float(value))
-                if metric == 'KiloBytesRecv':
-                    metrics.instances[session_id].update_kilobytes_received(stamp, float(value))
-                if metric == 'CPUUsage':
-                    metrics.instances[session_id].cpu_usage = float(value)
-            if time() - last < 0.5:
-                continue
-            last = time()
-            reporter.update(metrics)
+        fill_metrics(metrics, events, lambda: reporter.update(metrics))
     finally:
         reporter.stop()
