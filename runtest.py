@@ -2,23 +2,36 @@
 import curses
 from time import time, sleep
 from csv import reader as parse_events
-from sys import stdin, stderr, exit
+from sys import stdin, stdout, stderr, exit
 from collections import defaultdict
 from itertools import islice
 from subprocess import Popen, PIPE
-from argparse import ArgumentParser
+from argparse import ArgumentParser, ArgumentTypeError
 from select import select
 from tempfile import TemporaryFile
 from signal import SIGINT
+import json
+from threading import Thread
 
 
 def main():
+    def parse_duration(s):
+        res = parse_duration_to_secs(s)
+        if res is None:
+            raise ArgumentTypeError("%s is not a valid duration (e.g. 1h30m12s5us)" % s)
+        return res
     parser = ArgumentParser(description='Load test', add_help=False)
     parser.add_argument('--help', dest='help', action='store_true', default=False)
     parser.add_argument('--stdin', dest='stdin', action='store_true', default=False,
                                    help="don't invoke test, read test run on STDIN for debugging")
     parser.add_argument('--saveout', dest='saveout', action='store_true', default=False,
                                      help="save output in lastrun.stdout, lastrun.stderr")
+    parser.add_argument('--ci', dest='ci', action='store_true', default=False,
+                                help="run in CI mode, returning statistics")
+    parser.add_argument('--steady-timeout', dest='steady_timeout', default=60, type=parse_duration,
+                                help="seconds of steady state streaming to terminate test after (CI mode)")
+    parser.add_argument('--timeout', dest='timeout', default=60*10, type=parse_duration,
+                                help="seconds until hard terminating the test (CI mode)")
     args, unknown = parser.parse_known_args()
 
     if args.help:
@@ -28,7 +41,7 @@ def main():
         exit(2)
 
     if args.stdin:
-        data_source = STDINDataSource
+        data_source = STDINDataSource(stdin)
     else:
         if args.saveout:
             data_source = TestInvokingDataSource(unknown, 'lastrun.stdout', 'lastrun.stderr')
@@ -37,23 +50,55 @@ def main():
 
     metrics = Metrics()
     events = parse_events(data_source.get_lines())
-    reporter = Reporter()
-    try:
-        fill_metrics(metrics, events, lambda: reporter.update(metrics))
-    except KeyboardInterrupt:
-        data_source.stop()
-    finally:
-        reporter.stop()
+    if args.ci:
+        exiting = False
+        def terminate():
+            started = time()
+            while time() - started < args.timeout:
+                if exiting:
+                    return
+                sleep(1)
+            print >> stderr, "timeout elapsed, terminating"
+            data_source.stop()
+            sleep(1)
+            exit(1)
+        Thread(target=terminate).start()
+        try:
+            def check_done():
+                if metrics.all_streams_buffered(args.steady_timeout):
+                    print >> stderr, "all streams buffered for %dsec" % args.steady_timeout
+                    data_source.stop()
+            fill_metrics(metrics, events, check_done)
+        except KeyboardInterrupt:
+            data_source.stop()
+        else:
+            json.dump(metrics.to_dict(), stdout)
+            stdout.write('\n')
+        finally:
+            exiting = True
+    else:
+        reporter = Reporter()
+        try:
+            fill_metrics(metrics, events, lambda: reporter.update(metrics))
+        except KeyboardInterrupt:
+            data_source.stop()
+        finally:
+            reporter.stop()
 
 
 class STDINDataSource(object):
-    @staticmethod
-    def get_lines():
-        return iter(stdin.readline, '')
+    def __init__(self, stream):
+        self.stream = stream
+        self.stopped = False
 
-    @staticmethod
-    def stop():
-        pass
+    def get_lines(self):
+        for line in iter(self.stream.readline, ''):
+            yield line
+            if self.stopped:
+                return
+
+    def stop(self):
+        self.stopped = True
 
 
 class TestInvokingDataSource(object):
@@ -253,6 +298,19 @@ class Metrics(object):
         for instance_id, instance in self.instances.iteritems():
             yield instance_id, instance.cpu_usage
 
+    def all_streams_buffered(self, secs):
+        if self.num_sessions == 0 or self.num_sessions > self.num_sessions_established:
+            return False
+        for session in self.sessions.itervalues():
+            if session.secs_buffered > secs:
+                return False
+        return True
+
+    def to_dict(self):
+        return {
+            'sessions': self.num_sessions,
+            'established': self.num_sessions_established
+        }
 
 class Session(object):
     def __init__(self, test_start_epoch):
@@ -261,6 +319,7 @@ class Session(object):
         self.dropped = False
         self.bytes_sec_overall = 0
         self.bytes_sec_average = 0
+        self.secs_buffered = 0
         self._last_kb = None
 
         self.instance_id = ""
@@ -274,6 +333,7 @@ class Session(object):
 
     def update_buffered(self, time, secs_buffered):
         self._set_streaming_start_epoch(time)
+        self.secs_buffered = secs_buffered
         self.dropped = time - self.streaming_start_epoch > secs_buffered + 3
 
     def update_kilobytes(self, time, kb):
@@ -364,6 +424,56 @@ def fill_metrics(metrics, events, on_update):
                 metrics.instances[session_id].cpu_usage = float(value)
         on_update()
 
+duration_units_to_ns = {
+    'ns': 1,
+    'us': 1000,
+    'ms': 1000*1000,
+    's': 1000*1000*1000,
+    'm': 1000*1000*1000*60,
+    'h': 1000*1000*1000*60*60
+}
+
+def parse_duration_to_secs(s):
+    """
+    mimick golang's Duration parsing
+
+    >>> parse_duration_to_secs('1s')
+    1.0
+    >>> parse_duration_to_secs('1ns')
+    1e-09
+    >>> parse_duration_to_secs('1h3m12348us')
+    3780.012348
+    >>> parse_duration_to_secs('')
+    >>> parse_duration_to_secs('1')
+    >>> parse_duration_to_secs('1 ')
+    >>> parse_duration_to_secs('1d')
+    >>> parse_duration_to_secs('h1')
+    """
+    parts = []
+    num_acc = ''
+    unit_acc = ''
+    for c in s:
+        if '0' <= c <= '9':
+            if not unit_acc:
+                num_acc += c
+            else:
+                parts.append((int(num_acc), unit_acc))
+                unit_acc = ''
+                num_acc = c
+        else:
+            if not num_acc:
+                return
+            unit_acc += c
+    if not num_acc or not unit_acc:
+        return
+    parts.append((int(num_acc), unit_acc))
+
+    ns = 0
+    for num, unit in parts:
+        if unit not in duration_units_to_ns:
+            return
+        ns += duration_units_to_ns[unit] * num
+    return float(ns) / 10**9
 
 if __name__ == "__main__":
     main()
