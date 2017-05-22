@@ -74,10 +74,10 @@ func (client *InfluencerClient) Get(influencerID int, token string) (*Influencer
 	resp, err := client.HTTPClient.Do(req)
 	defer tryCloseRespBody(resp)
 	if err != nil {
-		return nil, err
+		return nil, WrapAPIError(req, resp, nil, err)
 	}
 	if resp.StatusCode != 200 {
-		return nil, newError(req, resp, nil)
+		return nil, NewAPIError(req, resp, nil)
 	}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

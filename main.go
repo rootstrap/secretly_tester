@@ -7,16 +7,15 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/toptier/secretly_tester/client"
+	"github.com/toptier/secretly_tester/instanceinfos"
 	"github.com/toptier/secretly_tester/remote"
 	"github.com/toptier/secretly_tester/rtmp"
 	"github.com/toptier/secretly_tester/usergenerator"
-	"github.com/toptier/secretly_tester/instanceinfos"
 )
 
 func main() {
@@ -239,12 +238,12 @@ func runFans(concurrentUsers int, rampUpTime time.Duration, sleepBetweenSteps bo
 				machineID,
 				strconv.FormatFloat(secsSince(startTimeInstanceInfos), 'f', 2, 32),
 				"KiloBytesSent",
-				strconv.FormatUint(bytesSent / 1024, 10)}
+				strconv.FormatUint(bytesSent/1024, 10)}
 			out <- []string{
 				machineID,
 				strconv.FormatFloat(secsSince(startTimeInstanceInfos), 'f', 2, 32),
 				"KiloBytesRecv",
-				strconv.FormatUint(bytesRecv / 1024, 10)}
+				strconv.FormatUint(bytesRecv/1024, 10)}
 
 			cpuUsage := instanceinfos.GetCPUUsage()
 			out <- []string{
@@ -428,19 +427,21 @@ func bumpNoFiles(noFiles uint64) error {
 
 func logErrorAPI(userType, fanUsername, message string, err error, level string, startTime time.Time, out chan []string) {
 	log.Println(userType, fanUsername, message, err)
-	if strings.Contains(err.Error(), "Timeout") {
-		out <- []string{
-			fanUsername,
-			strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
-			"ApiRequestTimeout",
-			level}
-	} else {
-		out <- []string{
-			fanUsername,
-			strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
-			"ApiError",
-			level}
+	var apiErr, isApiError = err.(*client.APIError)
+	eventType := "ApiError"
+	if isApiError && apiErr.Timeout {
+		eventType = "ApiRequestTimeout"
 	}
+	line := []string{
+		fanUsername,
+		strconv.FormatFloat(secsSince(startTime), 'f', 2, 32),
+		eventType,
+		level}
+	if isApiError {
+		line = append(line, strconv.Itoa(apiErr.Code))
+		line = append(line, apiErr.Endpoint)
+	}
+	out <- line
 }
 
 func printApiRequestCSV(fanUsername, machineID string, startTime time.Time, out chan []string) {

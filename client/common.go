@@ -3,17 +3,28 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"strings"
 )
 
 const urlBase string = "https://talkative-staging.herokuapp.com"
 const streamsUrlBase string = "https://secretly-sender.herokuapp.com"
 const streamsToken string = "SENDERHQ2016"
 
-func newError(req *http.Request, resp *http.Response, body []byte) error {
+type APIError struct {
+	repr     string
+	Endpoint string
+	Code     int
+	Timeout  bool
+}
+
+func (e *APIError) Error() string {
+	return e.repr
+}
+
+func NewAPIError(req *http.Request, resp *http.Response, body []byte) *APIError {
 	s := ""
 	if req != nil {
 		reqBytes, _ := httputil.DumpRequest(req, false)
@@ -23,14 +34,25 @@ func newError(req *http.Request, resp *http.Response, body []byte) error {
 		resBytes, _ := httputil.DumpResponse(resp, false)
 		s += string(resBytes)
 		s += string(body)
-	} else {
-		resBytes, err := httputil.DumpResponse(resp, true)
-		if err != nil {
-			return err
-		}
+	} else if resp != nil {
+		resBytes, _ := httputil.DumpResponse(resp, true)
 		s += string(resBytes)
 	}
-	return errors.New(s)
+	code := 0
+	if resp != nil {
+		code = resp.StatusCode
+	}
+	return &APIError{repr: s, Endpoint: req.URL.String(), Code: code}
+}
+
+func WrapAPIError(req *http.Request, resp *http.Response, body []byte, err error) error {
+	if _, notWrapped := err.(*APIError); !notWrapped && strings.Contains(err.Error(), "Timeout") {
+		newErr := NewAPIError(req, resp, body)
+		newErr.repr += "\nTimeout"
+		newErr.Timeout = true
+		err = newErr
+	}
+	return err
 }
 
 func tryCloseRespBody(resp *http.Response) {
@@ -51,10 +73,10 @@ func doReqRep(client http.Client, meth, url string, headers map[string]string) e
 	resp, err := client.Do(req)
 	defer tryCloseRespBody(resp)
 	if err != nil {
-		return err
+		return WrapAPIError(req, resp, nil, err)
 	}
 	if resp.StatusCode != 200 {
-		return newError(req, resp, nil)
+		return NewAPIError(req, resp, nil)
 	}
 	return nil
 }
@@ -75,10 +97,10 @@ func doJSONBodyRequest(client http.Client, meth, url string, reqBody interface{}
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, WrapAPIError(req, resp, nil, err)
 	}
 	if resp.StatusCode != 200 {
-		return nil, newError(req, resp, nil)
+		return nil, NewAPIError(req, resp, nil)
 	}
 	return resp, nil
 }

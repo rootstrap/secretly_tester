@@ -112,6 +112,7 @@ class TestInvokingDataSource(object):
         self.stdout_path = stdout_path
         self.stderr_path = stderr_path
         self.popen = None
+        self.stopped = False
 
     def get_lines(self):
         stdout_file = None
@@ -133,15 +134,24 @@ class TestInvokingDataSource(object):
                 stderr.write(data)
             if self.popen.stdout in ready:
                 break
+            if self.stopped:
+                return
 
         for line in iter(self.popen.stdout.readline, ''):
             yield line
             if stdout_file:
                 stdout_file.write(line)
+            if self.stopped:
+                return
 
     def stop(self):
+        self.stopped = True
         if self.popen and self.popen.returncode is None:
             self.popen.send_signal(SIGINT)
+            sleep(3)
+            if self.popen.poll() is None:
+                self.popen.terminate()
+            self.popen.wait()
 
     @classmethod
     def invoke(cls, args, **kwargs):
@@ -251,7 +261,7 @@ class Reporter(object):
 class Metrics(object):
     def __init__(self):
         self.sessions = {}
-        self.instances = {}
+        self.instances = defaultdict(Instance)
         self.requests = 0
         self.timeouts = 0
 
@@ -302,9 +312,42 @@ class Metrics(object):
         if self.num_sessions == 0 or self.num_sessions > self.num_sessions_established:
             return False
         for session in self.sessions.itervalues():
-            if session.secs_buffered > secs:
+            if session.secs_buffered < secs:
                 return False
         return True
+
+    def record_test_start(self, session_id, instance_id, stamp):
+        self.sessions[session_id] = Session(stamp)
+        self.sessions[session_id].instance_id = instance_id
+
+    def record_api_request(self, session_id, instance_id, stamp):
+        if self.sessions[session_id].instance_id == "":
+            self.sessions[session_id].instance_id = instance_id
+        self.requests += 1
+        self.sessions[session_id].add_request(stamp)
+
+    def record_api_request_error(self, session_id, stamp, level):
+        if level == "critical":
+            del self.sessions[session_id]
+
+    def record_api_request_timeout(self, session_id, stamp):
+        self.timeouts += 1
+
+    def record_stream_progress_kilobytes(self, session_id, stamp, kilobytes):
+        self.sessions[session_id].update_kilobytes(stamp, kilobytes)
+
+    def record_stream_progress_seconds(self, session_id, stamp, seconds):
+        self.sessions[session_id].update_buffered(stamp, seconds)
+        self.sessions[session_id].update_requests_average(stamp)
+
+    def record_instance_kilobytes_sent(self, instance_id, stamp, kb):
+        self.instances[instance_id].update_kilobytes_sent(stamp, kb)
+
+    def record_instance_kilobytes_received(self, instance_id, stamp, kb):
+        self.instances[instance_id].update_kilobytes_received(stamp, kb)
+
+    def record_instance_cpu_usage(self, instance_id, stamp, usage):
+        self.instances[instance_id].cpu_usage = usage
 
     def to_dict(self):
         return {
@@ -389,39 +432,28 @@ class Instance(object):
 
 
 def fill_metrics(metrics, events, on_update):
-    instance_metrics = ["KiloBytesSent", "KiloBytesRecv", "CPUUsage"]
     for e in events:
-        session_id, stamp, metric, value = e
+        entity_id, stamp, metric, value = e[:4]
+        rest = e[4:]
         stamp = float(stamp)
-        if metric not in instance_metrics:
-            if session_id not in metrics.sessions:
-                metrics.sessions[session_id] = Session(stamp)
-            if metric == 'StartTestOnMachine':
-                metrics.sessions[session_id].instance_id = value
-            if metric == 'ApiRequest':
-                if metrics.sessions[session_id].instance_id == "":
-                    metrics.sessions[session_id].instance_id = value
-                metrics.requests += 1
-                metrics.sessions[session_id].add_request(stamp)
-            if metric == 'ApiRequestTimeout' or metric == 'ApiError':
-                if metric == 'ApiRequestTimeout':
-                    metrics.timeouts += 1
-                if value == "critical":
-                    del metrics.sessions[session_id]
-            if metric == 'StreamProgressKiloBytes':
-                metrics.sessions[session_id].update_kilobytes(stamp, float(value))
-            if metric == 'StreamProgressSeconds':
-                metrics.sessions[session_id].update_buffered(stamp, float(value))
-                metrics.sessions[session_id].update_requests_average(stamp)
-        else:
-            if session_id not in metrics.instances:
-                metrics.instances[session_id] = Instance()
-            if metric == 'KiloBytesSent':
-                metrics.instances[session_id].update_kilobytes_sent(stamp, float(value))
-            if metric == 'KiloBytesRecv':
-                metrics.instances[session_id].update_kilobytes_received(stamp, float(value))
-            if metric == 'CPUUsage':
-                metrics.instances[session_id].cpu_usage = float(value)
+        if metric == 'StartTestOnMachine':
+            metrics.record_test_start(entity_id, value, stamp)
+        elif metric == 'ApiRequest':
+            metrics.record_api_request(entity_id, value, stamp)
+        elif metric == 'ApiRequestTimeout':
+            metrics.record_api_request_timeout(entity_id, stamp)
+        elif metric == 'ApiError':
+            metrics.record_api_request_error(entity_id, stamp, level)
+        elif metric == 'StreamProgressKiloBytes':
+            metrics.record_stream_progress_kilobytes(entity_id, stamp, float(value))
+        elif metric == 'StreamProgressSeconds':
+            metrics.record_stream_progress_seconds(entity_id, stamp, float(value))
+        elif metric == 'KiloBytesSent':
+            metrics.record_instance_kilobytes_sent(entity_id, stamp, float(value))
+        elif metric == 'KiloBytesRecv':
+            metrics.record_instance_kilobytes_received(entity_id, stamp, float(value))
+        elif metric == 'CPUUsage':
+            metrics.record_instance_cpu_usage(entity_id, stamp, float(value))
         on_update()
 
 duration_units_to_ns = {

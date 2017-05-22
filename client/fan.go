@@ -82,10 +82,10 @@ func (client *FanClient) UnfollowInfluencer(token string, influencerID int) erro
 	resp, err := client.HTTPClient.Do(req)
 	defer tryCloseRespBody(resp)
 	if err != nil {
-		return err
+		return WrapAPIError(req, resp, nil, err)
 	}
 	if resp.StatusCode != 200 {
-		return newError(req, resp, nil)
+		return NewAPIError(req, resp, nil)
 	}
 	return nil
 }
@@ -149,10 +149,10 @@ func (client *FanClient) LeaveStream(influencerID int, fanID int) error {
 	resp, err := client.HTTPClient.Do(req)
 	defer tryCloseRespBody(resp)
 	if err != nil {
-		return err
+		return WrapAPIError(req, resp, nil, err)
 	}
 	if resp.StatusCode != 200 {
-		return newError(req, resp, nil)
+		return NewAPIError(req, resp, nil)
 	}
 	return nil
 }
