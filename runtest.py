@@ -30,7 +30,7 @@ def main():
                                 help="run in CI mode, returning statistics")
     parser.add_argument('--steady-timeout', dest='steady_timeout', default=60, type=parse_duration,
                                 help="seconds of steady state streaming to terminate test after (CI mode)")
-    parser.add_argument('--timeout', dest='timeout', default=60*10, type=parse_duration,
+    parser.add_argument('--deadline-timeout', dest='timeout', default=60*10, type=parse_duration,
                                 help="seconds until hard terminating the test (CI mode)")
     args, unknown = parser.parse_known_args()
 
@@ -207,6 +207,8 @@ class Reporter(object):
         draw("Overall average number of requests: {0:8.2f}/s".format(metrics.average_request_rate))
         draw("Total number of requests: {0}".format(metrics.requests))
         draw("Total number of timeouts: {0}".format(metrics.timeouts))
+        for code, errs in metrics.errors.iteritems():
+            draw("Total number of {0}s: {1}".format(code, sum(errs.itervalues())))
         draw(("#" * 40) + " API requests breakdown top 20")
         for instance_id, req_rate in islice(metrics.average_request_rate_by_instance, 0, 20):
             draw("Average number of requests for instance {0}: {1:8.2f}/s".format(instance_id, req_rate))
@@ -264,10 +266,15 @@ class Metrics(object):
         self.instances = defaultdict(Instance)
         self.requests = 0
         self.timeouts = 0
+        self.errors = defaultdict(lambda: defaultdict(int))
 
     @property
     def average_request_rate(self):
         return sum(s.avg_nb_requests for s in self.sessions.itervalues())
+
+    @property
+    def errors_by_code(self):
+        pass
 
     @property
     def average_request_rate_by_instance(self):
@@ -326,12 +333,14 @@ class Metrics(object):
         self.requests += 1
         self.sessions[session_id].add_request(stamp)
 
-    def record_api_request_error(self, session_id, stamp, level):
+    def record_api_request_error(self, session_id, stamp, level, code=None, endpoint=None):
         if level == "critical":
             del self.sessions[session_id]
+        self.errors[code][endpoint] += 1
 
-    def record_api_request_timeout(self, session_id, stamp):
+    def record_api_request_timeout(self, session_id, stamp, level, endpoint=None):
         self.timeouts += 1
+        self.errors['timeout'][endpoint] += 1
 
     def record_stream_progress_kilobytes(self, session_id, stamp, kilobytes):
         self.sessions[session_id].update_kilobytes(stamp, kilobytes)
@@ -352,7 +361,8 @@ class Metrics(object):
     def to_dict(self):
         return {
             'sessions': self.num_sessions,
-            'established': self.num_sessions_established
+            'established': self.num_sessions_established,
+            'errors': self.errors
         }
 
 class Session(object):
@@ -441,9 +451,9 @@ def fill_metrics(metrics, events, on_update):
         elif metric == 'ApiRequest':
             metrics.record_api_request(entity_id, value, stamp)
         elif metric == 'ApiRequestTimeout':
-            metrics.record_api_request_timeout(entity_id, stamp)
+            metrics.record_api_request_timeout(entity_id, stamp, value, *rest)
         elif metric == 'ApiError':
-            metrics.record_api_request_error(entity_id, stamp, level)
+            metrics.record_api_request_error(entity_id, stamp, value, *rest)
         elif metric == 'StreamProgressKiloBytes':
             metrics.record_stream_progress_kilobytes(entity_id, stamp, float(value))
         elif metric == 'StreamProgressSeconds':

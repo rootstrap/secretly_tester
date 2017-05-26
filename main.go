@@ -438,7 +438,9 @@ func logErrorAPI(userType, fanUsername, message string, err error, level string,
 		eventType,
 		level}
 	if isApiError {
-		line = append(line, strconv.Itoa(apiErr.Code))
+		if !apiErr.Timeout {
+			line = append(line, strconv.Itoa(apiErr.Code))
+		}
 		line = append(line, apiErr.Endpoint)
 	}
 	out <- line
