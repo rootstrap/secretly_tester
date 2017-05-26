@@ -34,6 +34,9 @@ func main() {
 	var testVideoPath string
 	var precreateFans bool
 	var sleepBetweenSteps bool
+	var apiBaseURL string
+	var streamsAPIBaseURL string
+	var streamsAPIToken string
 	commandName := "runtest"
 	args := os.Args[1:]
 	if len(os.Args) >= 2 && len(os.Args[1]) > 0 && os.Args[1][0] != '-' {
@@ -47,6 +50,9 @@ func main() {
 	f.DurationVar(&rampUpTime, "ramp", 500*time.Millisecond, "time between users joining, e.g. 200ms")
 	f.DurationVar(&apiTimeout, "timeout", 0*time.Millisecond, "Response time before timeout, e.g. 500ms")
 	f.BoolVar(&sleepBetweenSteps, "sleepbetweensteps", false, "Sleep between steps as a fan")
+	f.StringVar(&apiBaseURL, "apiurl", "", "API url base")
+	f.StringVar(&streamsAPIBaseURL, "streamsapiurl", "", "Streams API url base")
+	f.StringVar(&streamsAPIToken, "streamsapitoken", "", "Streams API token")
 	switch commandName {
 	case "runtest":
 		f.StringVar(&sshHosts, "sshhosts", "", "space separated list of user@host to run test on (clustered)")
@@ -71,7 +77,16 @@ func main() {
 		os.Exit(2)
 	}
 	fanClient = client.NewFanClient(apiTimeout)
-
+	if apiBaseURL != "" {
+		fanClient.BaseURL = apiBaseURL
+		influencerClient.BaseURL = apiBaseURL
+	}
+	if streamsAPIBaseURL != "" {
+		fanClient.StreamsBaseUrl = streamsAPIBaseURL
+	}
+	if streamsAPIToken != "" {
+		fanClient.StreamsToken = streamsAPIToken
+	}
 	userGenerator, err = usergenerator.NewUserGenerator(int32(existingUserOffset), int32(percentNewUsers))
 	if err != nil {
 		log.Fatal(err)
@@ -109,6 +124,15 @@ func main() {
 				commandString += fmt.Sprintf(" -users %d", concurrentUsersPerNode)
 				commandString += fmt.Sprintf(" -ramp %v", rampUpTimePerNode.String())
 				commandString += fmt.Sprintf(" -percentnew %d", percentNewUsers)
+				if apiBaseURL != "" {
+					commandString += fmt.Sprintf(" -apiurl %s", apiBaseURL)
+				}
+				if streamsAPIBaseURL != "" {
+					commandString += fmt.Sprintf(" -streamsapiurl %s", streamsAPIBaseURL)
+				}
+				if streamsAPIToken != "" {
+					commandString += fmt.Sprintf(" -streamsapitoken %s", streamsAPIToken)
+				}
 				i := 0
 				remote.StartEach(func() (string, error) {
 					offset := existingUserOffset + concurrentUsers*2*i
