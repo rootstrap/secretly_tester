@@ -20,6 +20,14 @@ resource "aws_instance" "loadtest" {
   ami = "${var.ami_id}"
   vpc_security_group_ids = ["${var.security_group_id}"]
   subnet_id = "${var.subnet_id}"
+  user_data = <<EOF
+#!/bin/bash
+keyfile=~ubuntu/.ssh/authorized_keys
+echo ${file("./files/id_rsa.pub")} >> $keyfile
+chown ubuntu:ubuntu $keyfile
+chmod 400 $keyfile
+EOF
+
   tags = {
     Name = "Load Test Instance"
   }
