@@ -5,7 +5,8 @@
         "aws_region": "",
         "instance_type": "",
         "git_ref": "",
-        "source_tarball": ""
+        "source_tarball": "",
+        "source_ami": ""
     },
     "builders": [
         {
@@ -14,7 +15,7 @@
             "secret_key": "{{user `aws_secret_key`}}",
             "ami_name": "talkativebandwidthtest {{user `git_ref`}}",
             "region": "{{user `aws_region`}}",
-            "source_ami": "ami-7ac6491a",
+            "source_ami": "{{user `source_ami`}}",
             "instance_type": "{{user `instance_type`}}",
             "ssh_username": "ubuntu"
         }
