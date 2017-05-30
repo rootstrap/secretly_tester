@@ -21,6 +21,7 @@ configssh() {
 }
 
 build() {
+    rm -rf /tmp/goroot/src/github.com/toptier
     mkdir -p /tmp/goroot/src/github.com/toptier
     cp -r "$fileroot" /tmp/goroot/src/github.com/toptier/secretly_tester
     pushd /tmp/goroot/src/github.com/toptier/secretly_tester
@@ -32,7 +33,12 @@ build() {
     mv talkative_stream_test /usr/local/bin/talkative_stream_test
     mv display.py /usr/local/bin/talkative_display.py
     mv infra/files/runtest /usr/local/bin/talkative_runtest
-    chmod +x /usr/local/bin/talkative_display.py /usr/local/bin/talkative_runtest
+    mv infra/files/autoshutdown.sh /usr/local/bin/
+    mv infra/files/autoshutdown.service /etc/systemd/system/
+    chmod +x /usr/local/bin/talkative_display.py\
+             /usr/local/bin/talkative_runtest\
+             /usr/local/bin/autoshutdown.sh
+    systemctl enable autoshutdown
     popd
 }
 
