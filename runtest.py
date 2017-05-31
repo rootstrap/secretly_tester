@@ -12,6 +12,7 @@ from tempfile import TemporaryFile
 from signal import SIGINT
 import json
 from threading import Thread
+from os.path import expanduser
 
 
 def main():
@@ -156,8 +157,15 @@ class TestInvokingDataSource(object):
     @classmethod
     def invoke(cls, args, **kwargs):
         argvs = [list(p) for p in cls.argv_prefixes]
+        nodes = cls.nodes()
         for argv in argvs:
             argv.extend(args)
+            if nodes and not any('-sshhosts' in a for a in argv):
+                argv.append('-sshhosts')
+                argv.append(nodes)
+            if not any('-sshkeyfile' in a for a in argv):
+                argv.append('-sshkeyfile')
+                argv.append(expanduser('~/.ssh/id_rsa'))
             try:
                 return Popen(argv, **kwargs)
             except OSError as e:
@@ -168,6 +176,14 @@ class TestInvokingDataSource(object):
             for argv in argvs:
                 print >> stderr, ' '.join(argv)
             exit(1)
+
+    @classmethod
+    def nodes(cls):
+        try:
+            with file('/etc/talkativenodes') as cfg:
+                return cfg.read().strip()
+        except:
+            return None
 
 
 def infinite():
