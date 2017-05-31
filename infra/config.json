@@ -6,5 +6,6 @@
     "number_instances": "21",
     "security_group_id": "sg-49764631",
     "subnet_id": "subnet-743ca802",
-    "source_ami": "ami-7ac6491a"
+    "source_ami": "ami-7ac6491a",
+    "autoshutdown_secs": "28800"
 }
