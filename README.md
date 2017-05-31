@@ -86,7 +86,7 @@ optional arguments:
   --help
   --stdin               don't invoke test, read test run on STDIN for
                         debugging
-  --saveout             save output in lastrun.stdout, lastrun.stderr
+  --nosaveout           don't save output in lastrun.stdout, lastrun.stderr
   --ci                  run in CI mode, returning statistics
   --steady-timeout STEADY_TIMEOUT
                         seconds of steady state streaming to terminate test

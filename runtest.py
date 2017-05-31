@@ -25,8 +25,8 @@ def main():
     parser.add_argument('--help', dest='help', action='store_true', default=False)
     parser.add_argument('--stdin', dest='stdin', action='store_true', default=False,
                                    help="don't invoke test, read test run on STDIN for debugging")
-    parser.add_argument('--saveout', dest='saveout', action='store_true', default=False,
-                                     help="save output in lastrun.stdout, lastrun.stderr")
+    parser.add_argument('--nosaveout', dest='saveout', action='store_false', default=True,
+                                       help="don't save output in lastrun.stdout, lastrun.stderr")
     parser.add_argument('--ci', dest='ci', action='store_true', default=False,
                                 help="run in CI mode, returning statistics")
     parser.add_argument('--steady-timeout', dest='steady_timeout', default=60, type=parse_duration,
