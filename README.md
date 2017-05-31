@@ -76,6 +76,24 @@ nodeip = [
 ]
 $ ssh -i files/id_rsa -l ubuntu 54.67.25.209 # any of the above IPs will work
 $ talkative_runtest --help
+usage: runtest.py [--help] [--stdin] [--saveout] [--ci]
+                  [--steady-timeout STEADY_TIMEOUT]
+                  [--deadline-timeout TIMEOUT]
+
+Load test
+
+optional arguments:
+  --help
+  --stdin               don't invoke test, read test run on STDIN for
+                        debugging
+  --saveout             save output in lastrun.stdout, lastrun.stderr
+  --ci                  run in CI mode, returning statistics
+  --steady-timeout STEADY_TIMEOUT
+                        seconds of steady state streaming to terminate test
+                        after (CI mode)
+  --deadline-timeout TIMEOUT
+                        seconds until hard terminating the test (CI mode)
+
 Usage of talkative_stream_test runtest:
   -email string
         influencer email (default "hrant@msolution.io")
@@ -88,21 +106,27 @@ Usage of talkative_stream_test runtest:
   -ramp duration
         time between users joining, e.g. 200ms (default 500ms)
   -sleepbetweensteps
-  	Sleep between steps as a fan
+        Sleep between steps as a fan
   -sshhosts string
         space separated list of user@host to run test on (clustered)
   -sshkeyfile string
         path to SSH private key file
+  -timeout duration
+        Response time before timeout, e.g. 500ms
   -token string
         influencer token (default "4352915049.1677ed0.13fb746250c84b928b37360fba9e4d57")
-  -timeout duration
-    	Response time before timeout, e.g. 500ms
   -users int
         number of concurrent users (default 10)
   -videopath string
         path to video file used in test (default "640.flv")
-/usr/local/bin/talkative_runtest: line 26:  3620 Terminated              tail -n +0 -f lastrun.stderr 1>&2
-$ talkative_runtest --users 10 # runs test with 10 users
+
+# runs test with 10 users
+$ talkative_runtest --users 10
+
+# runs test with 10 users in CI mode
+# waiting for 5 minutes from stream start
+# suceeding after 1 minute of steady streaming
+$ talkative_runtest --users 10 --ci --steady-timeout 60s --deadline-timeout 5m
 ```
 
 ### Teardown infrastructure
