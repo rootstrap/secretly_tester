@@ -65,19 +65,13 @@ $ cat config.json # adjust config.json for right number of instances etc.
     "security_group_id": "sg-d2e0ecb6",
     "subnet_id": "subnet-f0b881a9"
 }
-$ ./build.sh
+$ ./loadtest.sh build
 ```
 
 ### Run test on built servers
 
 ```
-$ terraform output
-nodeip = [
-    54.67.25.209,
-    54.183.51.216,
-    54.183.13.55
-]
-$ ssh -i files/id_rsa -l ubuntu 54.67.25.209 # any of the above IPs will work
+$ ./loadtest.sh ssh
 $ talkative_runtest --help
 Usage of talkative_stream_test runtest:
   -email string
@@ -112,5 +106,5 @@ $ talkative_runtest --users 10 # runs test with 10 users
 
 ```
 $ cd ${GOPATH}/src/github.com/toptier/secretly_tester/infra # or wherever you've unpacked this repo
-$ ./destroy.sh
+$ ./loadtest.sh destroy
 ```

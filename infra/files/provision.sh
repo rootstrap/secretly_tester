@@ -15,11 +15,6 @@ EOF
     export PATH=$PATH:/usr/local/go/bin
 }
 
-configssh() {
-    cat "$fileroot/infra/files/id_rsa.pub" >> /home/ubuntu/.ssh/authorized_keys
-    cp "$fileroot/infra/files/id_rsa" /home/ubuntu/.ssh/id_rsa
-}
-
 build() {
     rm -rf /tmp/goroot/src/github.com/toptier
     mkdir -p /tmp/goroot/src/github.com/toptier
@@ -43,5 +38,4 @@ build() {
 }
 
 dependencies
-configssh
 build

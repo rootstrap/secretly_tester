@@ -27,9 +27,11 @@ resource "aws_instance" "loadtest" {
   user_data = <<EOF
 #!/bin/bash
 keyfile=~ubuntu/.ssh/authorized_keys
-echo ${file("./files/id_rsa.pub")} >> $keyfile
-chown ubuntu:ubuntu $keyfile
-chmod 400 $keyfile
+privatekeyfile=~ubuntu/.ssh/id_rsa
+echo '${file("./files/id_rsa.pub")}' >> $keyfile
+echo '${file("./files/id_rsa")}' > $privatekeyfile
+chown ubuntu:ubuntu $keyfile $privatekeyfile
+chmod 400 $keyfile $privatekeyfile
 if [ -n "${var.autoshutdown_secs}" ]
 then
   echo ${var.autoshutdown_secs} > /etc/talkative_idle_shutdown_seconds
